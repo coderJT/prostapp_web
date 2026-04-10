@@ -1,0 +1,12 @@
+joblib
+lightgbm
+xgboost
+pandas
+numpy
+scikit-learn==1.7.2
+shap
+lime
+Flask>=3.0.0
+groq>=0.9.0
+mlflow>=2.12.0
+gunicorn
