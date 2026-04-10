@@ -1,3 +1,4 @@
+import gc
 import json
 from collections import OrderedDict
 import logging
@@ -434,6 +435,9 @@ def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb") -> 
     if summary:
         result["lime_summary"] = summary
 
+    # Aggressively release RAM after heavy explanation compute
+    gc.collect()
+
     return result
 
 
@@ -453,5 +457,8 @@ def shap_global(modality: str, csv_text: str, model_type: str = "xgb") -> Dict:
     summary = summarize_shap(modality, result)
     if summary:
         result["shap_summary"] = summary
+
+    # Aggressively release RAM after heavy explanation compute
+    gc.collect()
 
     return result
