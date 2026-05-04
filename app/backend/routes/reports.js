@@ -94,7 +94,7 @@ router.post('/reports', async (req, res) => {
         const resolvedUserId = await resolveUserId(supabase, userEmail, userId);
 
         const row = {
-            client_entry_id: typeof payload.id === 'string' ? payload.id : null,
+            // Removed client_entry_id as it causes cache/schema mismatch in Supabase
             user_id: resolvedUserId,
             user_email: userEmail,
             source: payload.source,
@@ -117,9 +117,7 @@ router.post('/reports', async (req, res) => {
 
         const { data, error } = await supabase
             .from('prediction_reports')
-            .upsert(row, {
-                onConflict: 'client_entry_id',
-            })
+            .insert(row)
             .select('*')
             .single();
 
