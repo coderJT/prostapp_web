@@ -1,9 +1,11 @@
 import os
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 from xai_core import predict_with_lime, shap_global
 
 app = Flask(__name__)
+CORS(app)
 
 MODALITY_ALIASES = {
     "psa": "invasive",
@@ -85,6 +87,34 @@ def shap_endpoint(modality: str):
         return jsonify(result)
     except Exception as exc:  # pylint: disable=broad-except
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# ---------------------------------------------------------------------------
+# /api/* aliases — the Vercel frontend hits /api/predict-invasive etc.
+# These delegate to the existing handlers above.
+# ---------------------------------------------------------------------------
+@app.post("/api/predict-invasive")
+def api_predict_invasive():
+    """Alias for /xai/predict/invasive used by the frontend."""
+    return predict("invasive")
+
+
+@app.post("/api/predict-ftir")
+def api_predict_ftir():
+    """Alias for /xai/predict/non-invasive used by the frontend."""
+    return predict("ftir")
+
+
+@app.post("/api/shap-invasive")
+def api_shap_invasive():
+    """Alias for /xai/shap/invasive used by the frontend."""
+    return shap_endpoint("invasive")
+
+
+@app.post("/api/shap-ftir")
+def api_shap_ftir():
+    """Alias for /xai/shap/non-invasive used by the frontend."""
+    return shap_endpoint("ftir")
 
 
 # ---------------------------------------------------------------------------
