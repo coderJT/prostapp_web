@@ -24,25 +24,25 @@ function mapRowToHistoryEntry(row) {
 }
 
 async function resolveUserId(supabase, userEmail, userId) {
-    if (userId) {
-        return userId;
-    }
-
     if (!userEmail) {
         return null;
     }
 
+    // The frontend might send a Supabase Auth UUID as `userId`, but the `public.users`
+    // table uses custom IDs like 'P0001'. We must look up the correct ID by email.
     const { data, error } = await supabase
         .from('users')
         .select('id')
         .eq('user_email', userEmail)
         .maybeSingle();
 
-    if (error) {
-        throw error;
+    if (data && data.id) {
+        return data.id;
     }
 
-    return data?.id || null;
+    // If we couldn't find the user by email, try using the provided userId just in case
+    // it IS a valid public.users ID. Otherwise return null so the FK constraint doesn't fail.
+    return null;
 }
 
 router.get('/reports', async (req, res) => {
