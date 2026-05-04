@@ -219,8 +219,8 @@ export function Education() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Educational Resources</h1>
-        <p className="text-gray-600">Learn about prostate health from trusted medical sources</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Educational Resources</h1>
+        <p className="text-gray-600 dark:text-gray-400">Learn about prostate health from trusted medical sources</p>
       </div>
 
       <div className="mb-6 space-y-3">
@@ -236,11 +236,11 @@ export function Education() {
         </div>
 
         {loadingSources && (
-          <p className="text-sm text-blue-700">Fetching latest source titles from trusted medical websites...</p>
+          <p className="text-sm text-blue-700 dark:text-blue-400">Fetching latest source titles from trusted medical websites...</p>
         )}
 
         {sourceError && (
-          <p className="text-sm text-amber-700">{sourceError}</p>
+          <p className="text-sm text-amber-700 dark:text-amber-400">{sourceError}</p>
         )}
       </div>
 
@@ -267,7 +267,7 @@ export function Education() {
               <Card key={article.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between mb-2 gap-2">
-                    <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    <span className="text-xs font-medium text-blue-600 bg-blue-50 dark:text-blue-400 dark:bg-blue-900/30 px-2 py-1 rounded">
                       {article.source}
                     </span>
                     <ExternalLink className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -286,7 +286,7 @@ export function Education() {
             ))}
           </div>
           {filteredArticles.length === 0 && (
-            <p className="text-sm text-gray-500 mt-4">No articles matched your search.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">No articles matched your search.</p>
           )}
         </TabsContent>
 
@@ -317,7 +317,7 @@ export function Education() {
             ))}
           </div>
           {filteredVideos.length === 0 && (
-            <p className="text-sm text-gray-500 mt-4">No videos matched your search.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">No videos matched your search.</p>
           )}
         </TabsContent>
 
@@ -332,12 +332,12 @@ export function Education() {
                 {filteredFaqs.map((faq, index) => (
                   <AccordionItem key={index} value={`faq-${index}`}>
                     <AccordionTrigger className="text-left">{faq.question}</AccordionTrigger>
-                    <AccordionContent className="text-gray-600">{faq.answer}</AccordionContent>
+                    <AccordionContent className="text-gray-600 dark:text-gray-300">{faq.answer}</AccordionContent>
                   </AccordionItem>
                 ))}
               </Accordion>
               {filteredFaqs.length === 0 && (
-                <p className="text-sm text-gray-500 mt-4">No FAQs matched your search.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">No FAQs matched your search.</p>
               )}
             </CardContent>
           </Card>
@@ -359,7 +359,7 @@ export function Education() {
                     href={resource.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline text-sm break-all"
+                    className="text-blue-600 dark:text-blue-400 hover:underline text-sm break-all"
                   >
                     {resource.url}
                   </a>
@@ -368,16 +368,16 @@ export function Education() {
             ))}
           </div>
           {filteredResources.length === 0 && (
-            <p className="text-sm text-gray-500 mt-4">No resources matched your search.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-4">No resources matched your search.</p>
           )}
         </TabsContent>
       </Tabs>
 
-      <Card className="mt-6 border-amber-200 bg-amber-50">
+      <Card className="mt-6 border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/20">
         <CardHeader>
-          <CardTitle className="text-amber-900">Medical Disclaimer</CardTitle>
+          <CardTitle className="text-amber-900 dark:text-amber-500">Medical Disclaimer</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-amber-800">
+        <CardContent className="text-sm text-amber-800 dark:text-amber-200/80">
           <p>
             The information provided here is for educational purposes only and should not be considered medical advice.
             Always consult with a qualified healthcare professional for diagnosis and treatment recommendations.
