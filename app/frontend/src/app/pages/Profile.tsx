@@ -156,23 +156,24 @@ export function Profile() {
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile Settings</h1>
-        <p className="text-gray-600">Manage your account settings and preferences</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Profile Settings</h1>
+        <p className="text-gray-600 dark:text-gray-400">Manage your account settings and preferences</p>
       </div>
 
       {/* Profile Header */}
       <Card className="mb-6">
         <CardContent className="pt-6">
           <div className="flex items-center gap-6">
-            <Avatar className="h-24 w-24">
-              <AvatarFallback className="text-2xl bg-blue-600 text-white">
-                {getInitials()}
+            <Avatar className="h-24 w-24 border-4 border-white dark:border-gray-800 shadow-md">
+              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} />
+              <AvatarFallback className="text-2xl bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
+                {user?.name?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold text-gray-900">{user?.name || 'User'}</h2>
-              <p className="text-gray-600">{user?.email}</p>
-              <p className="text-sm text-gray-500 mt-1">Patient Account</p>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{user?.name || 'User'}</h2>
+              <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Patient Account</p>
             </div>
             <Button variant="outline" onClick={handleChangePhoto}>Change Photo</Button>
           </div>
@@ -240,11 +241,11 @@ export function Profile() {
                     readOnly
                     disabled
                     aria-describedby="email-locked-note"
-                    className="pl-10 bg-gray-50 text-gray-500 disabled:cursor-not-allowed disabled:opacity-100"
+                    className="pl-10 bg-gray-50 text-gray-500 dark:bg-gray-900 dark:text-gray-400 disabled:cursor-not-allowed disabled:opacity-100"
                   />
                 </div>
-                <p id="email-locked-note" className="text-xs text-gray-500">
-                  Email address is linked to your login and cannot be changed here.
+                <p id="email-locked-note" className="text-xs text-gray-500 dark:text-gray-400">
+                  Email address cannot be changed.
                 </p>
               </div>
 
@@ -335,7 +336,7 @@ export function Profile() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="font-medium">Email Notifications</Label>
-                    <p className="text-sm text-gray-500">Receive notifications via email</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Receive notifications via email</p>
                   </div>
                   <Switch
                     checked={notifications.emailNotifications}
@@ -350,7 +351,7 @@ export function Profile() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="font-medium">SMS Notifications</Label>
-                    <p className="text-sm text-gray-500">Receive text message alerts</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Receive text message alerts</p>
                   </div>
                   <Switch
                     checked={notifications.smsNotifications}
@@ -365,7 +366,7 @@ export function Profile() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="font-medium">Appointment Reminders</Label>
-                    <p className="text-sm text-gray-500">Get reminders before scheduled appointments</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Get reminders before scheduled appointments</p>
                   </div>
                   <Switch
                     checked={notifications.appointmentReminders}
@@ -380,7 +381,7 @@ export function Profile() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="font-medium">Assessment Reminders</Label>
-                    <p className="text-sm text-gray-500">Reminders to complete risk assessments</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Reminders to complete risk assessments</p>
                   </div>
                   <Switch
                     checked={notifications.assessmentReminders}
@@ -395,7 +396,7 @@ export function Profile() {
                 <div className="flex items-center justify-between">
                   <div className="space-y-0.5">
                     <Label className="font-medium">Educational Content</Label>
-                    <p className="text-sm text-gray-500">Receive health tips and educational materials</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Receive health tips and educational materials</p>
                   </div>
                   <Switch
                     checked={notifications.educationalContent}
@@ -447,7 +448,7 @@ export function Profile() {
                       className="pl-10"
                     />
                   </div>
-                  <p className="text-xs text-gray-500">Must be at least 8 characters long</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Must be at least 8 characters long</p>
                 </div>
 
                 <div className="space-y-2">

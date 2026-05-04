@@ -628,13 +628,13 @@ export function Appointments() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'upcoming':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300';
       case 'completed':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300';
       case 'cancelled':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
     }
   };
 
@@ -642,10 +642,10 @@ export function Appointments() {
     <div className="max-w-6xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             {isAdminUser ? 'Clinician Schedule' : 'Appointments'}
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             {isAdminUser
               ? 'Manage your assigned appointments and update locations for patients.'
               : 'Schedule and manage your healthcare appointments'}
@@ -744,8 +744,8 @@ export function Appointments() {
                 </div>
               </div>
 
-              <div className="rounded-md border bg-muted/30 p-3 text-sm text-gray-600">
-                <p className="font-medium text-gray-800">Available hours</p>
+              <div className="rounded-md border bg-muted/30 p-3 text-sm text-gray-600 dark:text-gray-400">
+                <p className="font-medium text-gray-800 dark:text-gray-200">Available hours</p>
                 <p>8:00 AM to 5:00 PM, 1-hour slots, excluding lunch from 12:00 PM to 1:00 PM.</p>
                 <p className="mt-1">Location will be updated by your clinician after booking.</p>
                 {newAppointment.clinicianEmail && newAppointment.date && (
@@ -807,19 +807,19 @@ export function Appointments() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Unread</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Unread</span>
                 <Badge variant="secondary">{notifications.length}</Badge>
               </div>
               {isLoadingNotifications ? (
-                <p className="text-sm text-gray-500">Loading notifications...</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Loading notifications...</p>
               ) : notifications.length === 0 ? (
-                <p className="text-sm text-gray-500">No new notifications.</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">No new notifications.</p>
               ) : (
                 <div className="space-y-2">
                   {notifications.slice(0, 5).map((notification) => (
                     <div key={notification.id} className="rounded-md border p-2">
-                      <p className="text-sm font-medium text-gray-800">{notification.title}</p>
-                      <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                      <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{notification.title}</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{notification.message}</p>
                       <div className="mt-2 flex justify-end">
                         <Button size="sm" variant="outline" onClick={() => markNotificationAsRead(notification.id)}>
                           Mark read
@@ -868,15 +868,15 @@ export function Appointments() {
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Upcoming</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Upcoming</span>
                 <Badge variant="secondary">{upcomingAppointments.length}</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Completed</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Completed</span>
                 <Badge variant="secondary">{pastAppointments.length}</Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">This Month</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">This Month</span>
                 <Badge variant="secondary">{currentMonthCount}</Badge>
               </div>
             </CardContent>
@@ -888,13 +888,13 @@ export function Appointments() {
             <h2 className="text-xl font-semibold mb-4">Upcoming Appointments</h2>
             {isLoading ? (
               <Card>
-                <CardContent className="py-12 text-center text-gray-500">
+                <CardContent className="py-12 text-center text-gray-500 dark:text-gray-400">
                   Loading appointments from the database...
                 </CardContent>
               </Card>
             ) : upcomingAppointments.length === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center text-gray-500">
+                <CardContent className="py-12 text-center text-gray-500 dark:text-gray-400">
                   No upcoming appointments. Schedule one to get started.
                 </CardContent>
               </Card>
@@ -915,7 +915,7 @@ export function Appointments() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-gray-700">
+                        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                           <CalendarIcon className="h-4 w-4 text-gray-400" />
                           {new Date(apt.date).toLocaleDateString('en-US', {
                             weekday: 'long',
@@ -924,16 +924,16 @@ export function Appointments() {
                             day: 'numeric',
                           })}
                         </div>
-                        <div className="flex items-center gap-2 text-gray-700">
+                        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                           <Clock className="h-4 w-4 text-gray-400" />
                           {apt.time}
                         </div>
-                        <div className="flex items-center gap-2 text-gray-700">
+                        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                           {getTypeIcon(apt.type)}
                           {apt.location}
                         </div>
                         {apt.notes && (
-                          <div className="mt-3 p-3 bg-gray-50 rounded-md text-gray-600">
+                          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md text-gray-600 dark:text-gray-400">
                             {apt.notes}
                           </div>
                         )}
@@ -986,7 +986,7 @@ export function Appointments() {
             <h2 className="text-xl font-semibold mb-4">Past Appointments</h2>
             {pastAppointments.length === 0 ? (
               <Card>
-                <CardContent className="py-12 text-center text-gray-500">
+                <CardContent className="py-12 text-center text-gray-500 dark:text-gray-400">
                   No past appointments.
                 </CardContent>
               </Card>
@@ -1007,7 +1007,7 @@ export function Appointments() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2 text-sm">
-                        <div className="flex items-center gap-2 text-gray-700">
+                        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                           <CalendarIcon className="h-4 w-4 text-gray-400" />
                           {new Date(apt.date).toLocaleDateString('en-US', {
                             year: 'numeric',
@@ -1015,11 +1015,11 @@ export function Appointments() {
                             day: 'numeric',
                           })}
                         </div>
-                        <div className="flex items-center gap-2 text-gray-700">
+                        <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
                           <Clock className="h-4 w-4 text-gray-400" />
                           {apt.time}
                         </div>
-                        {apt.notes && <div className="mt-3 p-3 bg-gray-50 rounded-md text-gray-600">{apt.notes}</div>}
+                        {apt.notes && <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-md text-gray-600 dark:text-gray-400">{apt.notes}</div>}
                       </div>
                     </CardContent>
                   </Card>
