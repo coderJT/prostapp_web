@@ -21,16 +21,8 @@ function normalizeConfiguredApiBase(rawValue: string) {
 }
 
 export function getApiBaseUrl() {
-  const configured = normalizeConfiguredApiBase(import.meta.env.VITE_API_BASE_URL || '');
-  if (configured) {
-    return configured;
-  }
-
-  if (typeof window !== 'undefined' && isLocalHost(window.location.hostname)) {
-    return '';
-  }
-
-  return null;
+  // Always use relative paths so requests are handled by the same origin (Vite proxy locally, Vercel Serverless in production)
+  return '';
 }
 
 export function buildApiUrl(path: string) {

@@ -26,6 +26,10 @@ app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api", require("./routes/reports"));
 
 // Server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
-});
+if (process.env.VERCEL !== '1') {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`)
+    });
+}
+
+module.exports = app;

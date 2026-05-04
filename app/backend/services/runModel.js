@@ -1,4 +1,5 @@
-const XAI_SERVICE_URL = process.env.XAI_SERVICE_URL || 'http://localhost:8000';
+// Fallback to VITE_API_BASE_URL because the user likely set that in Vercel pointing to the Render Python backend
+const XAI_SERVICE_URL = process.env.XAI_SERVICE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 async function callXaiService(endpoint, csvBuffer, modelType) {
     const formData = new FormData();
