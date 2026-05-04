@@ -49,21 +49,25 @@ router.get('/reports', async (req, res) => {
     const userEmail = typeof req.query.userEmail === 'string' ? req.query.userEmail.trim().toLowerCase() : '';
     const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
 
-    if (!userEmail && !userId) {
-        return res.status(400).json({ success: false, error: 'userEmail or userId is required.' });
+    if (!userEmail) {
+        return res.status(400).json({ success: false, error: 'userEmail is required.' });
     }
 
     try {
         const supabase = getSupabase();
+        const resolvedUserId = await resolveUserId(supabase, userEmail, userId);
+
         let query = supabase
             .from('prediction_reports')
             .select('*')
             .order('created_at', { ascending: false })
             .limit(50);
 
-        query = userId
-            ? query.eq('user_id', userId)
-            : query.eq('user_email', userEmail);
+        if (resolvedUserId) {
+            query = query.or(`user_id.eq.${resolvedUserId},user_email.eq.${userEmail}`);
+        } else {
+            query = query.eq('user_email', userEmail);
+        }
 
         const { data, error } = await query;
 
@@ -139,16 +143,20 @@ router.delete('/reports', async (req, res) => {
     const userEmail = typeof payload.userEmail === 'string' ? payload.userEmail.trim().toLowerCase() : '';
     const userId = typeof payload.userId === 'string' ? payload.userId.trim() : '';
 
-    if (!userEmail && !userId) {
-        return res.status(400).json({ success: false, error: 'userEmail or userId is required.' });
+    if (!userEmail) {
+        return res.status(400).json({ success: false, error: 'userEmail is required.' });
     }
 
     try {
         const supabase = getSupabase();
+        const resolvedUserId = await resolveUserId(supabase, userEmail, userId);
+
         let query = supabase.from('prediction_reports').delete();
-        query = userId
-            ? query.eq('user_id', userId)
-            : query.eq('user_email', userEmail);
+        if (resolvedUserId) {
+            query = query.or(`user_id.eq.${resolvedUserId},user_email.eq.${userEmail}`);
+        } else {
+            query = query.eq('user_email', userEmail);
+        }
 
         const { error } = await query;
 
