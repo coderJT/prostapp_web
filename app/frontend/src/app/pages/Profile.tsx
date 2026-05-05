@@ -237,19 +237,19 @@ export function Profile() {
       {/* Profile Header */}
       <Card className="mb-6">
         <CardContent className="pt-6">
-          <div className="flex items-center gap-6">
-            <Avatar className="h-24 w-24 border-4 border-white dark:border-gray-800 shadow-md">
+          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:gap-6">
+            <Avatar className="h-24 w-24 flex-shrink-0 border-4 border-white shadow-md dark:border-gray-800">
               <AvatarImage src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} />
               <AvatarFallback className="text-2xl bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
             </Avatar>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{user?.name || 'User'}</h2>
-              <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
+              <p className="break-all text-gray-600 dark:text-gray-400">{user?.email}</p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Patient Account</p>
             </div>
-            <Button variant="outline" onClick={handleChangePhoto} disabled={isUploading}>
+            <Button variant="outline" className="w-full shrink-0 sm:w-auto" onClick={handleChangePhoto} disabled={isUploading}>
               {isUploading ? 'Uploading...' : 'Change Photo'}
             </Button>
           </div>
