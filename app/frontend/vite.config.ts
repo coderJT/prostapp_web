@@ -20,8 +20,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      __SUPABASE_URL__: JSON.stringify(env.SUPABASE_URL),
-      __SUPABASE_KEY__: JSON.stringify(env.SUPABASE_KEY),
+      __SUPABASE_URL__: JSON.stringify(
+        process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || env.VITE_SUPABASE_URL || env.SUPABASE_URL
+      ),
+      __SUPABASE_KEY__: JSON.stringify(
+        process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || env.VITE_SUPABASE_ANON_KEY || env.SUPABASE_KEY
+      ),
     },
     server: {
       proxy: {
