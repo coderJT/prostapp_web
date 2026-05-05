@@ -83,9 +83,38 @@ FTIR_METADATA_COLUMNS = {'id', 'created_at', 'patient_name', 'result'}
 
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 SYSTEM_PROMPT = (
-    "You summarize medical ML explainability outputs (SHAP/LIME) in plain, concise language "
-    "for research dashboards. Avoid diagnosis claims and keep uncertainty explicit."
+    "You are a senior urologist and prostate-cancer clinical decision-support expert working "
+    "with a clinical data scientist. Explain SHAP/LIME outputs in careful plain language for "
+    "a clinician-facing research dashboard. Do not diagnose, prescribe, imply the model output "
+    "is definitive, invent unsupported protected-attribute bias claims, or turn model "
+    "associations into causal medical explanations. Keep uncertainty explicit and tie every "
+    "statement to the supplied feature values and model direction."
 )
+
+PROSTATE_DOMAIN_GUIDANCE = "\n".join([
+    "Clinical interpretation guidance:",
+    "- PSA is prostate-specific antigen. Higher PSA can be associated with prostate cancer, benign prostatic enlargement, prostatitis, urinary infection, recent instrumentation, or ejaculation; interpret with age, prostate volume, exam findings, repeat testing, and clinical context.",
+    "- Age is a major prostate-cancer risk factor, but age alone does not determine whether invasive assessment is appropriate; fitness, life expectancy, symptoms, PSA kinetics, MRI findings, and patient preference matter.",
+    "- Family history increases baseline risk, especially in first-degree relatives or early-onset disease.",
+    "- Race/ethnicity variables are demographic model inputs, not biological explanations. Describe them as learned associations in the training data and avoid bias claims unless bias evaluation data is provided.",
+    "- Diabetes, hyperlipidemia, hypertension, renal disease, cardiovascular disease, and body size are comorbidity/context variables. Discuss them as possible correlates of pathway selection or background health status, not direct causes.",
+    "- Height and weight rarely have direct clinical meaning for prostate biopsy decisions; if they appear important, frame them as model-learned associations needing clinical review.",
+    "- For invasive-modality predictions, class 1 means the model leans toward invasive modality being necessary or higher modeled need; class 0 means lower modeled need.",
+    "- For FTIR/non-invasive predictions, spectral/PCA components may reflect biochemical patterns but are not directly interpretable as individual clinical findings unless mapped back to wavenumber bands.",
+    "- Positive LIME/SHAP direction pushes toward class 1; negative direction pushes toward class 0. Magnitude reflects model influence, not clinical severity.",
+])
+
+OUTPUT_RULES = "\n".join([
+    "Return plain text with these sections:",
+    "Summary",
+    "Write 3-4 sentences including predicted probability/class when available, top drivers, clinical interpretation, and uncertainty.",
+    "",
+    "Feature interpretation",
+    "Use up to 6 bullets prefixed with '- '. For each bullet, write: feature label, patient value if available, model direction/weight, clinical interpretation, and limitation/caution when needed.",
+    "",
+    "Clinical caution",
+    "Write 1 short sentence that this is decision support and should be interpreted with PSA history, symptoms, DRE, MRI/biopsy history, comorbidities, and clinician judgement.",
+])
 
 
 # ---------- PCA loading / transformation ----------
@@ -323,12 +352,14 @@ def summarize_lime(modality: str, prediction: Dict) -> Optional[str]:
         return None
 
     prompt = [
-        "Summarize this local LIME explanation in 3-4 sentences for a prediction details panel.",
-        "Requirements:",
-        "1) Mention the predicted class and probability (if present).",
-        "2) Mention the strongest positive and negative feature effects by absolute weight.",
-        "3) Add one short caution that this is model-based support, not diagnosis.",
-        "Return plain text only.",
+        "Explain this patient-specific LIME result as a prostate/urology decision-support expert.",
+        PROSTATE_DOMAIN_GUIDANCE,
+        OUTPUT_RULES,
+        "Patient-specific LIME rules:",
+        "- Focus on this individual report; do not overgeneralize from global SHAP.",
+        "- If probability is near the decision boundary, explicitly say the model confidence is limited.",
+        "- Avoid vague phrases unless you explain what each supplied value means clinically and what it does not prove.",
+        "- Never say a race variable means the model is biased unless a fairness/bias audit is provided.",
         "",
         f"Modality: {modality}",
         f"Predicted class: {prediction.get('prediction')}",
@@ -353,12 +384,15 @@ def summarize_shap(modality: str, shap_result: Dict) -> Optional[str]:
         return None
 
     prompt = [
-        "Summarize this global SHAP output in 3-4 sentences for a dashboard overview card.",
-        "Requirements:",
-        "1) State the most influential features by mean absolute SHAP.",
-        "2) Briefly explain what positive/negative mean SHAP direction implies.",
-        "3) Add one short caution that these are associations, not causal effects.",
-        "Return plain text only.",
+        "Explain this model-wide SHAP result as a prostate/urology decision-support expert.",
+        PROSTATE_DOMAIN_GUIDANCE,
+        OUTPUT_RULES,
+        "Model-wide SHAP rules:",
+        "- Focus on global model behavior, not this patient specifically.",
+        "- Mention sample count and warn strongly if sample_count is very small.",
+        "- Explain mean_abs_shap as average model influence and mean_shap as average direction toward class 1 or class 0.",
+        "- Do not describe global SHAP as prostate cancer risk if this modality endpoint is predicting invasive modality need.",
+        "- Avoid turning demographic or comorbidity associations into biological causes.",
         "",
         f"Modality: {modality}",
         f"Sample count: {shap_result.get('sample_count')}",

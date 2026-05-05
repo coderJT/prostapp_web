@@ -10,6 +10,8 @@ import {
   ClipboardCheck,
   FileText,
   HeartPulse,
+  Mail,
+  MapPin,
   ShieldCheck,
   Sparkles,
   Stethoscope,
@@ -52,6 +54,36 @@ const audienceCards = [
     icon: Stethoscope,
     title: 'For clinical teams',
     description: 'A focused workspace for reviewing activity, appointments, and patient-facing next steps.',
+  },
+];
+
+const footerSections = [
+  {
+    title: 'Platform',
+    links: [
+      { label: 'Risk assessment', href: '#how-it-works' },
+      { label: 'Patient dashboard', href: '/signup' },
+      { label: 'Appointments', href: '/signup' },
+      { label: 'Education center', href: '/education' },
+    ],
+  },
+  {
+    title: 'Support',
+    links: [
+      { label: 'How it works', href: '#how-it-works' },
+      { label: 'Patient support', href: '#support' },
+      { label: 'Clinical workflow', href: '#support' },
+      { label: 'Privacy approach', href: '#privacy' },
+    ],
+  },
+  {
+    title: 'Governance',
+    links: [
+      { label: 'Clinical disclaimer', href: '#clinical-disclaimer' },
+      { label: 'Data minimisation', href: '#privacy' },
+      { label: 'Care planning', href: '#support' },
+      { label: 'Responsible use', href: '#clinical-disclaimer' },
+    ],
   },
 ];
 
@@ -244,13 +276,57 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t border-white/70 bg-white/70">
-        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-slate-500 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <div className="flex items-center gap-2 font-semibold text-slate-800">
-            <Activity className="h-5 w-5 text-sky-600" />
-            ProstAPP
+      <footer className="border-t border-white/70 bg-white/80">
+        <div className="mx-auto max-w-6xl px-4 py-10 text-sm text-slate-500 sm:px-6 lg:px-8">
+          <div className="grid gap-10 md:grid-cols-[1.35fr_2fr]">
+            <div>
+              <div className="flex items-center gap-2 font-semibold text-slate-900">
+                <Activity className="h-5 w-5 text-sky-600" />
+                ProstAPP
+              </div>
+              <p className="mt-4 max-w-sm leading-6">
+                A prostate cancer risk support platform for guided assessments, saved reports, appointments, and patient education.
+              </p>
+              <div className="mt-5 space-y-3 text-sm">
+                <div className="flex items-center gap-3">
+                  <Mail className="h-4 w-4 text-slate-400" />
+                  <a href="mailto:support@prostapp.health" className="font-medium text-slate-700 transition hover:text-slate-950">
+                    support@prostapp.health
+                  </a>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-4 w-4 text-slate-400" />
+                  <span>Built for digital health workflows in Malaysia</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-8 sm:grid-cols-3">
+              {footerSections.map((section) => (
+                <div key={section.title}>
+                  <h3 className="text-sm font-semibold text-slate-900">{section.title}</h3>
+                  <ul className="mt-4 space-y-3">
+                    {section.links.map((link) => (
+                      <li key={link.label}>
+                        <a href={link.href} className="transition hover:text-slate-950">
+                          {link.label}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
           </div>
-          <p>Decision support for assessment and care planning. Not a replacement for clinical diagnosis.</p>
+
+          <div id="clinical-disclaimer" className="mt-10 border-t border-slate-200/70 pt-6">
+            <div className="grid gap-4 text-xs leading-5 text-slate-500 md:grid-cols-[1fr_auto] md:items-end">
+              <p className="max-w-3xl">
+                ProstAPP provides decision support for assessment preparation, education, and care planning. It does not provide a diagnosis, replace clinical judgement, or substitute for emergency or specialist medical care.
+              </p>
+              <p className="font-medium text-slate-600">© {new Date().getFullYear()} ProstAPP. All rights reserved.</p>
+            </div>
+          </div>
         </div>
       </footer>
     </main>
