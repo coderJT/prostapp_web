@@ -491,15 +491,10 @@ export function AdminPanel() {
                               <Badge className={`rounded-full border px-2.5 py-0.5 text-xs ${user.role === 'Clinician' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200' : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'}`}>{user.role}</Badge>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu modal={false}>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="z-[100]">
-                                  <DropdownMenuItem onSelect={() => setEditingUser({ ...user })}>Edit</DropdownMenuItem>
-                                  <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(user)}>Delete</DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              <div className="flex items-center gap-1">
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditingUser({ ...user })}>Edit</Button>
+                                <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/40" onClick={() => setDeleteTarget(user)}>Delete</Button>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
