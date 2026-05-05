@@ -158,6 +158,18 @@ router.post('/signup', async (req, res) => {
             });
         }
 
+        // Sync into public.users so profile features (avatar, etc.) work
+        await supabase.from('users').upsert({
+            user_email: normalizedEmail,
+            user_first_name: firstName || 'Unknown',
+            user_last_name: lastName || 'Unknown',
+            user_hashed_password: 'managed_by_supabase_auth',
+            user_phone_number: phone || '0000000000',
+            is_clinician: (role === 'admin' || clinicalRole),
+        }, { onConflict: 'user_email' }).then(({ error: syncError }) => {
+            if (syncError) console.error('Failed to sync user to public.users:', syncError.message);
+        });
+
         return res.status(201).json({
             success: true,
             message: 'Signup successful.',
