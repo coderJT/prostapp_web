@@ -10,6 +10,7 @@ export type AppUser = {
   role: UserRole;
   clinicalRole?: ClinicalRole | null;
   created_at?: string;
+  avatar_url?: string | null;
 };
 
 const USER_STORAGE_KEY = 'user';
@@ -59,6 +60,7 @@ export function normalizeUser(rawUser: unknown): AppUser | null {
       ? clinicalRoleValue
       : null,
     created_at: typeof user.created_at === 'string' ? user.created_at : undefined,
+    avatar_url: typeof user.avatar_url === 'string' ? user.avatar_url : null,
   };
 }
 

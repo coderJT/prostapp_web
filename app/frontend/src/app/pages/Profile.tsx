@@ -10,9 +10,12 @@ import { Separator } from '../components/ui/separator';
 import { User, Mail, Phone, Calendar, Bell, Shield, Key } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUser, saveUserSession } from '../auth/session';
+import { supabase } from '../lib/supabase';
 
 export function Profile() {
   const [user, setUser] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [profileData, setProfileData] = useState({
     firstName: '',
     lastName: '',
@@ -52,6 +55,20 @@ export function Profile() {
         lastName: nameParts[1] || '',
         email: parsedUser.email || '',
       });
+
+      // Fetch user's avatar from public.users table
+      if (parsedUser.email) {
+        supabase
+          .from('users')
+          .select('avatar_url')
+          .eq('user_email', parsedUser.email)
+          .single()
+          .then(({ data, error }) => {
+            if (!error && data?.avatar_url) {
+              setAvatarUrl(data.avatar_url);
+            }
+          });
+      }
     }
   }, []);
 
@@ -130,18 +147,71 @@ export function Profile() {
   };
 
   const handleChangePhoto = () => {
-    // Create a file input for photo upload
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
 
     input.onchange = (e: any) => {
-      const file = e.target.files[0];
-      if (file) {
-        // In a real app, this would upload to a server
-        // For now, just show a success message
-        toast.success('Photo updated! (Demo mode - upload not implemented)');
-      }
+      const file = e.target.files?.[0];
+      if (!file || !user?.email) return;
+
+      setIsUploading(true);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = async () => {
+          // Compress the image
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 256;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          
+          // Get compressed Base64 string
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+          try {
+            const { error: updateError } = await supabase
+              .from('users')
+              .update({ avatar_url: compressedDataUrl })
+              .eq('user_email', user.email);
+
+            if (updateError) throw updateError;
+
+            setAvatarUrl(compressedDataUrl);
+            
+            // Update local session
+            const updatedUser = { ...user, avatar_url: compressedDataUrl };
+            setUser(updatedUser);
+            saveUserSession(updatedUser);
+            
+            toast.success('Profile photo updated successfully!');
+          } catch (error: any) {
+            toast.error(`Error updating photo: ${error.message}`);
+          } finally {
+            setIsUploading(false);
+          }
+        };
+        img.src = event.target?.result as string;
+      };
+      reader.readAsDataURL(file);
     };
 
     input.click();
@@ -165,7 +235,7 @@ export function Profile() {
         <CardContent className="pt-6">
           <div className="flex items-center gap-6">
             <Avatar className="h-24 w-24 border-4 border-white dark:border-gray-800 shadow-md">
-              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} />
+              <AvatarImage src={avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'default'}`} />
               <AvatarFallback className="text-2xl bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                 {user?.name?.[0]?.toUpperCase() || 'U'}
               </AvatarFallback>
@@ -175,7 +245,9 @@ export function Profile() {
               <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
               <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">Patient Account</p>
             </div>
-            <Button variant="outline" onClick={handleChangePhoto}>Change Photo</Button>
+            <Button variant="outline" onClick={handleChangePhoto} disabled={isUploading}>
+              {isUploading ? 'Uploading...' : 'Change Photo'}
+            </Button>
           </div>
         </CardContent>
       </Card>
