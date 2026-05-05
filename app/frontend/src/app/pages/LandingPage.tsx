@@ -376,7 +376,7 @@ export function LandingPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="h-12 rounded-2xl bg-slate-950 px-6 text-base font-semibold hover:bg-slate-800">
+            <Button asChild className="h-12 rounded-2xl bg-slate-950 px-6 text-base font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
               <Link to={storedUser ? appPath : '/signup'}>
                 {storedUser ? copy.openDashboard : copy.startNow}
                 <ArrowRight className="h-5 w-5" />

@@ -398,7 +398,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <Button type="submit" className="h-12 w-full rounded-2xl bg-slate-950 text-base font-semibold hover:bg-slate-800" disabled={loading}>
+        <Button type="submit" className="h-12 w-full rounded-2xl bg-slate-950 text-base font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200" disabled={loading}>
           {loading ? copy.loading : copy.submit}
         </Button>
 
