@@ -35,6 +35,16 @@ const OUTPUT_RULES = [
     'Write 1 short sentence that this is decision support and should be interpreted with PSA history, symptoms, DRE, MRI/biopsy history, comorbidities, and clinician judgement.',
 ].join('\n');
 
+const LANGUAGE_INSTRUCTIONS = {
+    en: 'Write the entire explanation in English.',
+    ms: 'Write the entire explanation in Bahasa Malaysia. Keep medical abbreviations such as PSA, DRE, MRI, LIME, and SHAP in their standard form, with clear Bahasa Malaysia wording around them.',
+    zh: 'Write the entire explanation in Chinese. Keep medical abbreviations such as PSA, DRE, MRI, LIME, and SHAP in their standard form, with clear Chinese wording around them.',
+};
+
+function getLanguageInstruction(language) {
+    return LANGUAGE_INSTRUCTIONS[language] || LANGUAGE_INSTRUCTIONS.en;
+}
+
 function hasLlmConfig() {
     return Boolean(process.env.GROQ_API_KEY);
 }
@@ -99,13 +109,14 @@ function formatFeaturePairsForLLM(lime, shap) {
     };
 }
 
-async function summarizeLimePrediction({ modality, predictionResult }) {
+async function summarizeLimePrediction({ modality, predictionResult, language = 'en' }) {
     if (!hasLlmConfig()) {
         return null;
     }
 
     const prompt = [
         'Explain this patient-specific LIME result as a prostate/urology decision-support expert.',
+        getLanguageInstruction(language),
         PROSTATE_DOMAIN_GUIDANCE,
         OUTPUT_RULES,
         'Patient-specific LIME rules:',
@@ -125,13 +136,14 @@ async function summarizeLimePrediction({ modality, predictionResult }) {
     return callLlm(prompt);
 }
 
-async function summarizeShapGlobal({ modality, shapResult }) {
+async function summarizeShapGlobal({ modality, shapResult, language = 'en' }) {
     if (!hasLlmConfig()) {
         return null;
     }
 
     const prompt = [
         'Explain this model-wide SHAP result as a prostate/urology decision-support expert.',
+        getLanguageInstruction(language),
         PROSTATE_DOMAIN_GUIDANCE,
         OUTPUT_RULES,
         'Model-wide SHAP rules:',

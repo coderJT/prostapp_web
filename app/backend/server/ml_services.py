@@ -14,6 +14,12 @@ MODALITY_ALIASES = {
     "non-invasive": "non-invasive",
     "noninvasive": "non-invasive",
 }
+SUPPORTED_LANGUAGES = {"en", "ms", "zh"}
+
+
+def _request_language() -> str:
+    language = request.form.get("language", request.args.get("language", "en"))
+    return language if language in SUPPORTED_LANGUAGES else "en"
 
 # ---------------------------------------------------------------------------
 # MLflow helpers (optional — degrade gracefully)
@@ -64,7 +70,7 @@ def predict(modality: str):
     try:
         csv_text = file.stream.read().decode("utf-8")
         model_type = request.form.get("model_type", request.args.get("model_type", "xgb"))
-        result = predict_with_lime(modality, csv_text, model_type)
+        result = predict_with_lime(modality, csv_text, model_type, _request_language())
         return jsonify(result)
     except Exception as exc:  # pylint: disable=broad-except
         return jsonify({"success": False, "error": str(exc)}), 500
@@ -83,7 +89,7 @@ def shap_endpoint(modality: str):
     try:
         csv_text = file.stream.read().decode("utf-8")
         model_type = request.form.get("model_type", request.args.get("model_type", "xgb"))
-        result = shap_global(modality, csv_text, model_type)
+        result = shap_global(modality, csv_text, model_type, _request_language())
         return jsonify(result)
     except Exception as exc:  # pylint: disable=broad-except
         return jsonify({"success": False, "error": str(exc)}), 500

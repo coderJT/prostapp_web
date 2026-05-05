@@ -1,13 +1,16 @@
 // Fallback to VITE_API_BASE_URL because the user likely set that in Vercel pointing to the Render Python backend
 const XAI_SERVICE_URL = process.env.XAI_SERVICE_URL || process.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-async function callXaiService(endpoint, csvBuffer, modelType) {
+async function callXaiService(endpoint, csvBuffer, modelType, language) {
     const formData = new FormData();
     // Create a Blob from the buffer to send as a file
     const blob = new Blob([csvBuffer], { type: 'text/csv' });
     formData.append('file', blob, 'data.csv');
     if (modelType) {
         formData.append('model_type', modelType);
+    }
+    if (language) {
+        formData.append('language', language);
     }
 
     try {
@@ -30,20 +33,20 @@ async function callXaiService(endpoint, csvBuffer, modelType) {
     }
 }
 
-exports.runInvasive = function(csvBuffer) {
-    return callXaiService('/xai/predict/invasive', csvBuffer);
+exports.runInvasive = function(csvBuffer, language) {
+    return callXaiService('/xai/predict/invasive', csvBuffer, undefined, language);
 };
 
-exports.runNonInvasive = function(csvBuffer, modelType) {
-    return callXaiService('/xai/predict/non-invasive', csvBuffer, modelType);
+exports.runNonInvasive = function(csvBuffer, modelType, language) {
+    return callXaiService('/xai/predict/non-invasive', csvBuffer, modelType, language);
 };
 
-exports.runShapInvasive = function(csvBuffer) {
-    return callXaiService('/xai/shap/invasive', csvBuffer);
+exports.runShapInvasive = function(csvBuffer, language) {
+    return callXaiService('/xai/shap/invasive', csvBuffer, undefined, language);
 };
 
-exports.runShapNonInvasive = function(csvBuffer, modelType) {
-    return callXaiService('/xai/shap/non-invasive', csvBuffer, modelType);
+exports.runShapNonInvasive = function(csvBuffer, modelType, language) {
+    return callXaiService('/xai/shap/non-invasive', csvBuffer, modelType, language);
 };
 
 function buildLimeInsights(lime) {

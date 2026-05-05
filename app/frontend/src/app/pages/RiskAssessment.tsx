@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { savePredictionHistoryEntry } from '../historyStore';
 import { buildApiUrl } from '../lib/api';
+import { getPreferredLanguage } from '../lib/language';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 const escapePdfText = (value: string) =>
@@ -252,6 +253,7 @@ export function RiskAssessment() {
       const formDataToSend = new FormData();
       formDataToSend.append('file', csvFileObj);
       formDataToSend.append('modelType', 'xgb');
+      formDataToSend.append('language', getPreferredLanguage());
 
       const userStr = localStorage.getItem('user');
       if (userStr) {
@@ -479,6 +481,7 @@ export function RiskAssessment() {
       const formDataToSend = new FormData();
       formDataToSend.append('file', csvFile);
       formDataToSend.append('modelType', type === 'ftir' ? ftirModelType : 'xgb');
+      formDataToSend.append('language', getPreferredLanguage());
 
       // Get user email from localStorage and add to form data
       const userStr = localStorage.getItem('user');

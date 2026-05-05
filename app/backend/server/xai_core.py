@@ -116,6 +116,16 @@ OUTPUT_RULES = "\n".join([
     "Write 1 short sentence that this is decision support and should be interpreted with PSA history, symptoms, DRE, MRI/biopsy history, comorbidities, and clinician judgement.",
 ])
 
+LANGUAGE_INSTRUCTIONS = {
+    "en": "Write the entire explanation in English.",
+    "ms": "Write the entire explanation in Bahasa Malaysia. Keep medical abbreviations such as PSA, DRE, MRI, LIME, and SHAP in their standard form, with clear Bahasa Malaysia wording around them.",
+    "zh": "Write the entire explanation in Chinese. Keep medical abbreviations such as PSA, DRE, MRI, LIME, and SHAP in their standard form, with clear Chinese wording around them.",
+}
+
+
+def _language_instruction(language: str) -> str:
+    return LANGUAGE_INSTRUCTIONS.get(language, LANGUAGE_INSTRUCTIONS["en"])
+
 
 # ---------- PCA loading / transformation ----------
 @lru_cache(maxsize=1)
@@ -346,13 +356,14 @@ def _groq_client() -> Optional[Groq]:
     return Groq(api_key=api_key)
 
 
-def summarize_lime(modality: str, prediction: Dict) -> Optional[str]:
+def summarize_lime(modality: str, prediction: Dict, language: str = "en") -> Optional[str]:
     client = _groq_client()
     if not client:
         return None
 
     prompt = [
         "Explain this patient-specific LIME result as a prostate/urology decision-support expert.",
+        _language_instruction(language),
         PROSTATE_DOMAIN_GUIDANCE,
         OUTPUT_RULES,
         "Patient-specific LIME rules:",
@@ -378,13 +389,14 @@ def summarize_lime(modality: str, prediction: Dict) -> Optional[str]:
     return response.choices[0].message.content.strip() if response.choices else None
 
 
-def summarize_shap(modality: str, shap_result: Dict) -> Optional[str]:
+def summarize_shap(modality: str, shap_result: Dict, language: str = "en") -> Optional[str]:
     client = _groq_client()
     if not client:
         return None
 
     prompt = [
         "Explain this model-wide SHAP result as a prostate/urology decision-support expert.",
+        _language_instruction(language),
         PROSTATE_DOMAIN_GUIDANCE,
         OUTPUT_RULES,
         "Model-wide SHAP rules:",
@@ -433,7 +445,7 @@ def _log_prediction_to_mlflow(modality: str, df: pd.DataFrame, predicted_class: 
 
 
 # ---------- Core pipelines ----------
-def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb") -> Dict:
+def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb", language: str = "en") -> Dict:
     t0 = time.time()
     df = parse_csv(modality, csv_text)
     model = load_model(modality, model_type)
@@ -466,14 +478,14 @@ def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb") -> 
     if modality == "non-invasive":
         result["pca_csv"] = df.to_csv(index=False)
 
-    summary = summarize_lime(modality, result)
+    summary = summarize_lime(modality, result, language)
     if summary:
         result["lime_summary"] = summary
 
     return result
 
 
-def shap_global(modality: str, csv_text: str, model_type: str = "xgb") -> Dict:
+def shap_global(modality: str, csv_text: str, model_type: str = "xgb", language: str = "en") -> Dict:
     df = parse_csv(modality, csv_text)
     model = load_model(modality, model_type)
 
@@ -486,7 +498,7 @@ def shap_global(modality: str, csv_text: str, model_type: str = "xgb") -> Dict:
         "global_importance": feature_importance,
     }
 
-    summary = summarize_shap(modality, result)
+    summary = summarize_shap(modality, result, language)
     if summary:
         result["shap_summary"] = summary
 

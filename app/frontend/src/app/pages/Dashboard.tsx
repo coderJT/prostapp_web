@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { clearUserSession, getStoredUser, type AppUser } from '../auth/session';
 import { getNextAppointment } from '../appointmentsStore';
 import { 
@@ -162,6 +163,7 @@ export function Dashboard() {
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
               </Button>
+              <LanguageSwitcher />
             </div>
           </div>
         </div>
@@ -299,6 +301,10 @@ export function Dashboard() {
               <div className="flex items-center gap-3 rounded-[1.35rem] border border-transparent px-3 py-2">
                 <ThemeToggle />
                 <span className="text-sm text-slate-600 dark:text-slate-400">Toggle theme</span>
+              </div>
+              <div className="rounded-[1.35rem] border border-transparent px-3 py-2">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Language</p>
+                <LanguageSwitcher className="w-fit" />
               </div>
               <button
                 onClick={() => { setSidebarOpen(false); handleLogout(); }}

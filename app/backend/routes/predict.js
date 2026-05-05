@@ -9,6 +9,11 @@ const { getSupabase } = require('../config/supabase');
 const upload = multer({ storage: multer.memoryStorage() });
 const DEFAULT_RESULTS_TABLE = 'prediction_results';
 const CSV_PREVIEW_LIMIT = 10000;
+const SUPPORTED_LANGUAGES = new Set(['en', 'ms', 'zh']);
+
+function normalizeLanguage(value) {
+    return SUPPORTED_LANGUAGES.has(value) ? value : 'en';
+}
 
 // Helper function to save prediction result to database
 const savePredictionResult = async (tableName, userEmail, modality, prediction, probability, csvData, latency) => {
@@ -43,38 +48,42 @@ const savePredictionResult = async (tableName, userEmail, modality, prediction, 
 const routes = [
     {
         path: '/predict-invasive',
-        run: (buffer) => runModel.runInvasive(buffer),
+        run: (buffer, _modelType, language) => runModel.runInvasive(buffer, language),
         summaryKey: 'lime_summary',
-        buildSummary: (result) => explainabilitySummary.summarizeLimePrediction({
+        buildSummary: (result, language) => explainabilitySummary.summarizeLimePrediction({
             modality: 'invasive',
             predictionResult: result,
+            language,
         }),
     },
     {
         path: '/predict-ftir',
-        run: (buffer, modelType) => runModel.runNonInvasive(buffer, modelType),
+        run: (buffer, modelType, language) => runModel.runNonInvasive(buffer, modelType, language),
         summaryKey: 'lime_summary',
-        buildSummary: (result) => explainabilitySummary.summarizeLimePrediction({
+        buildSummary: (result, language) => explainabilitySummary.summarizeLimePrediction({
             modality: 'non-invasive',
             predictionResult: result,
+            language,
         }),
     },
     {
         path: '/shap-invasive',
-        run: (buffer) => runModel.runShapInvasive(buffer),
+        run: (buffer, _modelType, language) => runModel.runShapInvasive(buffer, language),
         summaryKey: 'shap_summary',
-        buildSummary: (result) => explainabilitySummary.summarizeShapGlobal({
+        buildSummary: (result, language) => explainabilitySummary.summarizeShapGlobal({
             modality: 'invasive',
             shapResult: result,
+            language,
         }),
     },
     {
         path: '/shap-ftir',
-        run: (buffer, modelType) => runModel.runShapNonInvasive(buffer, modelType),
+        run: (buffer, modelType, language) => runModel.runShapNonInvasive(buffer, modelType, language),
         summaryKey: 'shap_summary',
-        buildSummary: (result) => explainabilitySummary.summarizeShapGlobal({
+        buildSummary: (result, language) => explainabilitySummary.summarizeShapGlobal({
             modality: 'non-invasive',
             shapResult: result,
+            language,
         }),
     },
 ];
@@ -87,7 +96,8 @@ routes.forEach(({ path, run, summaryKey, buildSummary }) => {
 
         try {
             const modelType = req.body.modelType || 'xgb';
-            let result = await run(req.file.buffer, modelType);
+            const language = normalizeLanguage(req.body.language);
+            let result = await run(req.file.buffer, modelType, language);
             // attach per-feature notes for frontend & LLM prompts
             try {
                 const runModel = require('../services/runModel');
@@ -98,7 +108,7 @@ routes.forEach(({ path, run, summaryKey, buildSummary }) => {
 
             if (result?.success && buildSummary) {
                 try {
-                    const summary = await buildSummary(result);
+                    const summary = await buildSummary(result, language);
                     if (summary) {
                         result[summaryKey] = summary;
                     }

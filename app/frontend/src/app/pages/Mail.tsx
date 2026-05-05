@@ -174,12 +174,12 @@ export function MailPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700 mb-3">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
             <Mail className="h-4 w-4" />
             Mail
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Notifications Inbox</h1>
-          <p className="mt-2 text-gray-600">View appointment updates, location changes, and reminder messages here.</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-50">Notifications Inbox</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-300">View appointment updates, location changes, and reminder messages here.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={loadNotifications}>
@@ -197,30 +197,30 @@ export function MailPage() {
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-blue-600" />
+              <Bell className="h-5 w-5 text-blue-600 dark:text-blue-300" />
               Inbox Summary
             </CardTitle>
             <CardDescription>Unread notifications for your account</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="flex items-center justify-between rounded-lg border bg-white/70 p-4 dark:bg-slate-900/40">
               <div>
-                <p className="text-sm text-gray-500">Unread</p>
-                <p className="text-2xl font-bold text-gray-900">{unreadCount}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Unread</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-50">{unreadCount}</p>
               </div>
               <Badge variant="secondary">Live</Badge>
             </div>
-            <div className="space-y-3 text-sm text-gray-600">
+            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-300">
               <div className="flex items-center gap-2">
-                <CalendarDays className="h-4 w-4 text-blue-600" />
+                <CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-300" />
                 Day-before appointment reminders
               </div>
               <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-blue-600" />
+                <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-300" />
                 Location updates from your doctor
               </div>
               <div className="flex items-center gap-2">
-                <Clock3 className="h-4 w-4 text-blue-600" />
+                <Clock3 className="h-4 w-4 text-blue-600 dark:text-blue-300" />
                 Appointment booking updates
               </div>
             </div>
@@ -234,23 +234,23 @@ export function MailPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="py-12 text-center text-gray-500">Loading mail...</div>
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">Loading mail...</div>
             ) : notifications.length === 0 ? (
-              <div className="py-12 text-center text-gray-500">
+              <div className="py-12 text-center text-gray-500 dark:text-gray-400">
                 No new messages. You’ll see booking, location, and reminder notices here.
               </div>
             ) : (
               <div className="space-y-4">
                 {notifications.map((notification, index) => (
                   <div key={notification.id}>
-                    <div className="flex flex-col gap-3 rounded-xl border p-4 shadow-sm sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-3 rounded-xl border bg-white/80 p-4 shadow-sm dark:bg-slate-900/60 sm:flex-row sm:items-start sm:justify-between">
                       <div className="space-y-2">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant="secondary">{notification.category.replace(/-/g, ' ')}</Badge>
-                          <span className="text-xs text-gray-500">{formatRelativeTime(notification.created_at)}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{formatRelativeTime(notification.created_at)}</span>
                         </div>
-                        <h3 className="text-base font-semibold text-gray-900">{notification.title}</h3>
-                        <p className="text-sm text-gray-600">{notification.message}</p>
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-gray-50">{notification.title}</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">{notification.message}</p>
                       </div>
                       <div className="flex items-center gap-2 self-start">
                         <Button size="sm" variant="outline" onClick={() => markNotificationAsRead(notification.id)}>

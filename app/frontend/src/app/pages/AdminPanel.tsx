@@ -35,6 +35,7 @@ import { clearUserSession, getStoredUser, isAdminUser } from '../auth/session';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { ThemeToggle } from '../components/ThemeToggle';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 type UserRow = {
   id: string;
@@ -240,6 +241,7 @@ export function AdminPanel() {
               <LogOut className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">Logout</span>
             </Button>
+            <LanguageSwitcher />
           </div>
         </div>
       </header>
