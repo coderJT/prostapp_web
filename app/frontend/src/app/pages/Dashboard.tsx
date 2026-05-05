@@ -28,7 +28,12 @@ export function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState<AppUser | null>(() => getStoredUser());
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024;
+    }
+    return false;
+  });
   const [nextAppointment, setNextAppointment] = useState<any>(null);
 
   useEffect(() => {
@@ -107,9 +112,10 @@ export function Dashboard() {
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md"
             >
-              {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              {sidebarOpen ? <X className="h-6 w-6 lg:hidden" /> : null}
+              {sidebarOpen ? <Menu className="h-6 w-6 hidden lg:block" /> : <Menu className="h-6 w-6" />}
             </button>
             <Link to="/dashboard/risk-assessment" className="flex items-center gap-2">
               <Activity className="h-8 w-8 text-blue-600 dark:text-blue-400" />
@@ -159,13 +165,13 @@ export function Dashboard() {
       </header>
 
       <div className="flex">
-        {/* Sidebar - Hidden on mobile unless toggled */}
+        {/* Sidebar */}
         <aside className={`
-          fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] w-[292px] border-r border-slate-200/80 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 overflow-y-auto
-          transition-transform duration-300 z-40
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+          fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] border-slate-200/80 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 overflow-y-auto overflow-x-hidden
+          transition-all duration-300 z-40
+          ${sidebarOpen ? 'w-[292px] border-r translate-x-0' : 'w-0 border-r-0 -translate-x-full'}
         `}>
-          <div className="flex h-full flex-col p-4">
+          <div className="w-[292px] flex h-full flex-col p-4">
             <div className="rounded-xl border border-slate-200 bg-transparent p-4 shadow-none dark:border-slate-800">
               <div className="flex items-start gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-sm dark:bg-sky-500">
@@ -194,7 +200,9 @@ export function Dashboard() {
                   <Link
                     key={item.path}
                     to={item.path}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={() => {
+                      if (window.innerWidth < 1024) setSidebarOpen(false);
+                    }}
                     className={`
                       group flex items-center gap-3 rounded-[1.35rem] border px-3 py-3 transition-all
                       ${isActive
