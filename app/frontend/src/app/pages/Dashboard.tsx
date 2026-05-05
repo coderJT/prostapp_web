@@ -167,15 +167,12 @@ export function Dashboard() {
             </div>
           </div>
         </div>
-        <div className="border-t border-gray-100 px-4 py-2 dark:border-gray-800 lg:hidden">
-          <LanguageSwitcher className="justify-end" size="md" />
-        </div>
       </header>
 
       <div className="flex">
         {/* Sidebar */}
         <aside className={`
-          fixed lg:sticky top-[113px] lg:top-[73px] left-0 h-[calc(100vh-113px)] lg:h-[calc(100vh-73px)] border-slate-200/80 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 overflow-y-auto overflow-x-hidden
+          fixed lg:sticky top-[73px] left-0 h-[calc(100vh-73px)] border-slate-200/80 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95 overflow-y-auto overflow-x-hidden
           transition-all duration-300 z-40
           ${sidebarOpen ? 'w-[292px] border-r translate-x-0' : 'w-0 border-r-0 -translate-x-full'}
         `}>
@@ -305,7 +302,7 @@ export function Dashboard() {
                 <ThemeToggle />
                 <span className="text-sm text-slate-600 dark:text-slate-400">Toggle theme</span>
               </div>
-              <div className="hidden rounded-[1.35rem] border border-transparent px-3 py-2 lg:block">
+              <div className="rounded-[1.35rem] border border-transparent px-3 py-2">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400 dark:text-slate-500">Language</p>
                 <LanguageSwitcher className="w-fit" />
               </div>
