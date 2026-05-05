@@ -364,7 +364,7 @@ export function Results() {
             <p className="max-w-3xl text-sm leading-6 text-slate-700 dark:text-slate-300">{comparisonSummary}</p>
           </div>
           <Badge variant="outline" className="w-fit border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
-            {recentModelEntries.length} model result{recentModelEntries.length === 1 ? '' : 's'} tracked
+            {`${recentModelEntries.length} model result${recentModelEntries.length === 1 ? '' : 's'} tracked`}
           </Badge>
         </CardContent>
       </Card>
@@ -543,7 +543,7 @@ export function Results() {
                       <div>
                         <div className="mb-1 flex flex-wrap items-center gap-2">
                           <Badge variant="secondary" className={badgeClass(entry.color)}>
-                            {entry.riskLevel} Risk
+                            {`${entry.riskLevel} Risk`}
                           </Badge>
                           <Badge variant="outline" className="dark:border-slate-700 dark:text-slate-300">{sourceLabel(entry.source)}</Badge>
                           <span className="text-sm text-slate-500 dark:text-slate-400">
@@ -554,9 +554,9 @@ export function Results() {
                             })}
                           </span>
                         </div>
-                        <p className="text-sm text-slate-600 dark:text-slate-300">Risk score: {entry.riskScore}/100</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{`Risk score: ${entry.riskScore}/100`}</p>
                         {typeof entry.predictionValue === 'number' && (
-                          <p className="text-sm text-slate-600 dark:text-slate-300">Model probability: {toPercent(entry.predictionValue)}</p>
+                          <p className="text-sm text-slate-600 dark:text-slate-300">{`Model probability: ${toPercent(entry.predictionValue)}`}</p>
                         )}
                       </div>
                     </div>

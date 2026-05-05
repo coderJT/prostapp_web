@@ -29,6 +29,11 @@ const pageCopy = {
     createAccount: 'Create account',
     openDashboard: 'Open dashboard',
     heroTitle: 'A friendlier way to understand prostate cancer risk.',
+    heroMessages: [
+      'A friendlier way to understand prostate cancer risk.',
+      'Clear assessments for patients and clinical teams.',
+      'Local decision support built for Malaysian care workflows.',
+    ],
     heroDescription: 'ProstAPP helps patients and clinicians move from assessment to follow-up with clear results, simple records, and less confusion.',
     startNow: 'Start now',
     existingAccount: 'I already have an account',
@@ -109,6 +114,11 @@ const pageCopy = {
     createAccount: 'Cipta akaun',
     openDashboard: 'Buka papan pemuka',
     heroTitle: 'Cara yang lebih mesra untuk memahami risiko kanser prostat.',
+    heroMessages: [
+      'Cara yang lebih mesra untuk memahami risiko kanser prostat.',
+      'Penilaian jelas untuk pesakit dan pasukan klinikal.',
+      'Sokongan keputusan tempatan untuk aliran penjagaan di Malaysia.',
+    ],
     heroDescription: 'ProstAPP membantu pesakit dan klinisian bergerak daripada penilaian kepada susulan dengan keputusan yang jelas, rekod ringkas, dan kurang kekeliruan.',
     startNow: 'Mula sekarang',
     existingAccount: 'Saya sudah ada akaun',
@@ -189,6 +199,11 @@ const pageCopy = {
     createAccount: '创建账户',
     openDashboard: '打开仪表板',
     heroTitle: '更友好地了解前列腺癌风险。',
+    heroMessages: [
+      '更友好地了解前列腺癌风险。',
+      '为患者和临床团队提供清晰评估。',
+      '为马来西亚照护流程而设计的本地决策支持。',
+    ],
     heroDescription: 'ProstAPP 帮助患者和临床团队从评估走向随访，以清晰结果、简洁记录和更少困惑支持照护。',
     startNow: '立即开始',
     existingAccount: '我已有账户',
@@ -270,21 +285,20 @@ const footerLinkTargets = [
   ['#clinical-disclaimer', '#privacy', '#support', '#clinical-disclaimer'],
 ];
 
-const headlineLoopLanguages: LanguageCode[] = ['en', 'ms', 'zh'];
-
 export function LandingPage() {
   const [storedUser] = useState(() => getStoredUser());
   const [language, setLanguage] = useState<LanguageCode>(() => getPreferredLanguage());
   const [headlineLanguageIndex, setHeadlineLanguageIndex] = useState(0);
   const appPath = getUserHomePath(storedUser);
   const copy = pageCopy[language];
-  const headlineCopy = pageCopy[headlineLoopLanguages[headlineLanguageIndex]].heroTitle;
+  const headlineCopy = copy.heroMessages[headlineLanguageIndex];
 
   useEffect(() => {
     const handleLanguageChange = (event: Event) => {
       const nextLanguage = (event as CustomEvent<LanguageCode>).detail;
       if (nextLanguage) {
         setLanguage(nextLanguage);
+        setHeadlineLanguageIndex(0);
       }
     };
 
@@ -294,7 +308,7 @@ export function LandingPage() {
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
-      setHeadlineLanguageIndex((currentIndex) => (currentIndex + 1) % headlineLoopLanguages.length);
+      setHeadlineLanguageIndex((currentIndex) => (currentIndex + 1) % pageCopy.en.heroMessages.length);
     }, 3200);
 
     return () => window.clearInterval(intervalId);
@@ -345,7 +359,7 @@ export function LandingPage() {
           <div className="max-w-3xl space-y-6">
             <h1 className="min-h-[11.25rem] overflow-hidden text-5xl font-semibold leading-tight tracking-normal text-slate-950 sm:min-h-[9rem] sm:text-6xl lg:min-h-[13.5rem]">
               <span
-                key={headlineLoopLanguages[headlineLanguageIndex]}
+                key={`${language}-${headlineLanguageIndex}`}
                 className="block animate-in fade-in slide-in-from-left-6 duration-700"
               >
                 {headlineCopy}

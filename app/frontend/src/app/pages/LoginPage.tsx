@@ -8,6 +8,145 @@ import { toast } from 'sonner';
 import { AuthShell } from '../components/AuthShell';
 import { getStoredUser, getUserHomePath, saveUserSession } from '../auth/session';
 import { buildApiUrl } from '../lib/api';
+import { getPreferredLanguage, type LanguageCode } from '../lib/language';
+
+const loginCopy = {
+  en: {
+    shell: {
+      title: 'Welcome back',
+      description: 'Choose your role, sign in, and continue where you left off.',
+      sideTitle: 'Your health dashboard should feel simple from the first click.',
+      sideDescription: 'ProstAPP keeps the sign-in flow focused so patients and clinicians can get to assessments, appointments, and results quickly.',
+      home: 'Home',
+      reminderTitle: 'Friendly reminder',
+      reminderText: 'ProstAPP supports risk assessment and care planning. It does not replace clinical diagnosis or urgent care.',
+      highlights: ['Guided risk checks with clear next steps', 'Private access for patients and clinical teams', 'Designed for quick, calm daily use'],
+    },
+    errors: {
+      missing: 'Please enter both email and password',
+      role: 'Please select your admin role (doctor, nurse, or clinician)',
+      unavailable: 'Authentication backend unavailable. Set VITE_API_BASE_URL for deployed environments.',
+      failed: 'Login failed. Please try again.',
+      storage: 'Could not save your login session. Please enable browser storage and try again.',
+      boxTitle: 'We could not sign you in',
+      toastSuccess: 'Login successful!',
+      toastError: 'Login failed',
+    },
+    roleLabel: 'I am signing in as',
+    patient: 'Patient',
+    patientDesc: 'Assessment and results',
+    clinical: 'Clinical team',
+    clinicalDesc: 'Appointments and admin',
+    clinicalRole: 'Clinical role',
+    selectRole: 'Select your role',
+    doctor: 'Doctor',
+    nurse: 'Nurse',
+    clinician: 'Clinician',
+    clinicalHint: 'Clinical accounts use approved medical staff access.',
+    email: 'Email address',
+    password: 'Password',
+    forgot: 'Forgot password?',
+    passwordPlaceholder: 'Enter your password',
+    hidePassword: 'Hide password',
+    showPassword: 'Show password',
+    loading: 'Signing in...',
+    submit: 'Sign in',
+    secureTitle: 'Secure access',
+    secureText: 'Use the email and password linked to your ProstAPP account.',
+    newText: 'New to ProstAPP?',
+    create: 'Create an account',
+  },
+  ms: {
+    shell: {
+      title: 'Selamat kembali',
+      description: 'Pilih peranan anda, log masuk, dan teruskan kerja anda.',
+      sideTitle: 'Papan pemuka kesihatan anda patut terasa mudah sejak klik pertama.',
+      sideDescription: 'ProstAPP memastikan log masuk kekal fokus supaya pesakit dan klinisian boleh cepat ke penilaian, temu janji, dan keputusan.',
+      home: 'Laman utama',
+      reminderTitle: 'Peringatan mesra',
+      reminderText: 'ProstAPP menyokong penilaian risiko dan perancangan penjagaan. Ia tidak menggantikan diagnosis klinikal atau rawatan segera.',
+      highlights: ['Semakan risiko berpandu dengan langkah seterusnya yang jelas', 'Akses peribadi untuk pesakit dan pasukan klinikal', 'Direka untuk penggunaan harian yang cepat dan tenang'],
+    },
+    errors: {
+      missing: 'Sila masukkan emel dan kata laluan',
+      role: 'Sila pilih peranan admin anda (doktor, jururawat, atau klinisian)',
+      unavailable: 'Backend pengesahan tidak tersedia.',
+      failed: 'Log masuk gagal. Sila cuba lagi.',
+      storage: 'Sesi log masuk tidak dapat disimpan. Sila aktifkan storan pelayar dan cuba lagi.',
+      boxTitle: 'Kami tidak dapat log masuk anda',
+      toastSuccess: 'Log masuk berjaya!',
+      toastError: 'Log masuk gagal',
+    },
+    roleLabel: 'Saya log masuk sebagai',
+    patient: 'Pesakit',
+    patientDesc: 'Penilaian dan keputusan',
+    clinical: 'Pasukan klinikal',
+    clinicalDesc: 'Temu janji dan admin',
+    clinicalRole: 'Peranan klinikal',
+    selectRole: 'Pilih peranan anda',
+    doctor: 'Doktor',
+    nurse: 'Jururawat',
+    clinician: 'Klinisian',
+    clinicalHint: 'Akaun klinikal menggunakan akses staf perubatan yang diluluskan.',
+    email: 'Alamat emel',
+    password: 'Kata laluan',
+    forgot: 'Lupa kata laluan?',
+    passwordPlaceholder: 'Masukkan kata laluan anda',
+    hidePassword: 'Sembunyikan kata laluan',
+    showPassword: 'Tunjuk kata laluan',
+    loading: 'Sedang log masuk...',
+    submit: 'Log masuk',
+    secureTitle: 'Akses selamat',
+    secureText: 'Gunakan emel dan kata laluan yang dipautkan kepada akaun ProstAPP anda.',
+    newText: 'Baharu di ProstAPP?',
+    create: 'Cipta akaun',
+  },
+  zh: {
+    shell: {
+      title: '欢迎回来',
+      description: '选择您的角色，登录并继续之前的操作。',
+      sideTitle: '健康仪表板应从第一次点击开始就简单清晰。',
+      sideDescription: 'ProstAPP 让登录流程保持专注，帮助患者和临床人员快速进入评估、预约和结果页面。',
+      home: '主页',
+      reminderTitle: '温馨提醒',
+      reminderText: 'ProstAPP 支持风险评估和照护规划，但不能替代临床诊断或紧急医疗服务。',
+      highlights: ['引导式风险评估和清晰下一步', '患者和临床团队的私密访问', '为快速、平静的日常使用而设计'],
+    },
+    errors: {
+      missing: '请输入电子邮件和密码',
+      role: '请选择管理员角色（医生、护士或临床人员）',
+      unavailable: '认证后端不可用。',
+      failed: '登录失败，请重试。',
+      storage: '无法保存登录会话。请启用浏览器存储后重试。',
+      boxTitle: '无法登录',
+      toastSuccess: '登录成功！',
+      toastError: '登录失败',
+    },
+    roleLabel: '登录身份',
+    patient: '患者',
+    patientDesc: '评估和结果',
+    clinical: '临床团队',
+    clinicalDesc: '预约和管理',
+    clinicalRole: '临床角色',
+    selectRole: '选择您的角色',
+    doctor: '医生',
+    nurse: '护士',
+    clinician: '临床人员',
+    clinicalHint: '临床账户使用已批准的医护人员访问权限。',
+    email: '电子邮件地址',
+    password: '密码',
+    forgot: '忘记密码？',
+    passwordPlaceholder: '输入您的密码',
+    hidePassword: '隐藏密码',
+    showPassword: '显示密码',
+    loading: '正在登录...',
+    submit: '登录',
+    secureTitle: '安全访问',
+    secureText: '请使用与您的 ProstAPP 账户关联的电子邮件和密码。',
+    newText: '第一次使用 ProstAPP？',
+    create: '创建账户',
+  },
+} as const;
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -18,6 +157,8 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [language, setLanguage] = useState<LanguageCode>(() => getPreferredLanguage());
+  const copy = loginCopy[language];
 
   useEffect(() => {
     const existingUser = getStoredUser();
@@ -25,6 +166,15 @@ export function LoginPage() {
       navigate(getUserHomePath(existingUser), { replace: true });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const handleLanguageChange = (event: Event) => {
+      const nextLanguage = (event as CustomEvent<LanguageCode>).detail;
+      if (nextLanguage) setLanguage(nextLanguage);
+    };
+    window.addEventListener('prostapp-language-change', handleLanguageChange);
+    return () => window.removeEventListener('prostapp-language-change', handleLanguageChange);
+  }, []);
 
   const isAdminUser = (user: { is_clinician?: boolean; role?: string }) => {
     return user?.is_clinician === true || user?.role === 'admin';
@@ -57,20 +207,20 @@ export function LoginPage() {
     try {
       // Simulate login - in production, this would call your authentication API
       if (!email || !password) {
-        setError('Please enter both email and password');
+        setError(copy.errors.missing);
         setLoading(false);
         return;
       }
 
       if (accountType === 'admin' && !clinicalRole) {
-        setError('Please select your admin role (doctor, nurse, or clinician)');
+        setError(copy.errors.role);
         setLoading(false);
         return;
       }
 
       const loginUrl = buildApiUrl('/api/auth/login');
       if (!loginUrl) {
-        throw new Error('Authentication backend unavailable. Set VITE_API_BASE_URL for deployed environments.');
+        throw new Error(copy.errors.unavailable);
       }
 
       const response = await fetch(loginUrl, {
@@ -88,7 +238,7 @@ export function LoginPage() {
 
       const payload = await response.json();
       if (!response.ok || !payload?.success || !payload?.user) {
-        throw new Error(payload?.error || 'Login failed. Please try again.');
+        throw new Error(payload?.error || copy.errors.failed);
       }
 
       const user = payload.user;
@@ -97,15 +247,15 @@ export function LoginPage() {
       const savedUser = saveUserSession(normalizedUser);
 
       if (!savedUser) {
-        throw new Error('Could not save your login session. Please enable browser storage and try again.');
+        throw new Error(copy.errors.storage);
       }
       
-      toast.success('Login successful!');
+      toast.success(copy.errors.toastSuccess);
       navigate(getUserHomePath(savedUser));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      const message = err instanceof Error ? err.message : copy.errors.failed;
       setError(message);
-      toast.error('Login failed');
+      toast.error(copy.errors.toastError);
     } finally {
       setLoading(false);
     }
@@ -113,24 +263,28 @@ export function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      description="Choose your role, sign in, and continue where you left off."
-      sideTitle="Your health dashboard should feel simple from the first click."
-      sideDescription="ProstAPP keeps the sign-in flow focused so patients and clinicians can get to assessments, appointments, and results quickly."
+      title={copy.shell.title}
+      description={copy.shell.description}
+      sideTitle={copy.shell.sideTitle}
+      sideDescription={copy.shell.sideDescription}
+      homeLabel={copy.shell.home}
+      reminderTitle={copy.shell.reminderTitle}
+      reminderText={copy.shell.reminderText}
+      highlights={[...copy.shell.highlights]}
     >
       <form onSubmit={handleLogin} className="space-y-5">
         {error && (
           <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-rose-600" />
             <div>
-              <p className="font-medium">We could not sign you in</p>
+              <p className="font-medium">{copy.errors.boxTitle}</p>
               <p className="mt-1 leading-5">{error}</p>
             </div>
           </div>
         )}
 
         <div className="space-y-3">
-          <Label className="text-sm font-semibold text-slate-800">I am signing in as</Label>
+          <Label className="text-sm font-semibold text-slate-800">{copy.roleLabel}</Label>
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
@@ -149,8 +303,8 @@ export function LoginPage() {
                 <UserRound className="h-5 w-5" />
               </span>
               <span>
-                <span className="block font-semibold">Patient</span>
-                <span className="block text-xs text-slate-500">Assessment and results</span>
+                <span className="block font-semibold">{copy.patient}</span>
+                <span className="block text-xs text-slate-500">{copy.patientDesc}</span>
               </span>
             </button>
 
@@ -168,8 +322,8 @@ export function LoginPage() {
                 <Stethoscope className="h-5 w-5" />
               </span>
               <span>
-                <span className="block font-semibold">Clinical team</span>
-                <span className="block text-xs text-slate-500">Appointments and admin</span>
+                <span className="block font-semibold">{copy.clinical}</span>
+                <span className="block text-xs text-slate-500">{copy.clinicalDesc}</span>
               </span>
             </button>
           </div>
@@ -178,7 +332,7 @@ export function LoginPage() {
         {accountType === 'admin' && (
           <div className="space-y-2">
             <Label htmlFor="clinicalRole" className="text-sm font-semibold text-slate-800">
-              Clinical role
+              {copy.clinicalRole}
             </Label>
             <select
               id="clinicalRole"
@@ -186,18 +340,18 @@ export function LoginPage() {
               onChange={(e) => setClinicalRole(e.target.value as 'doctor' | 'nurse' | 'clinician' | '')}
               className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 shadow-sm outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100"
             >
-              <option value="">Select your role</option>
-              <option value="doctor">Doctor</option>
-              <option value="nurse">Nurse</option>
-              <option value="clinician">Clinician</option>
+              <option value="">{copy.selectRole}</option>
+              <option value="doctor">{copy.doctor}</option>
+              <option value="nurse">{copy.nurse}</option>
+              <option value="clinician">{copy.clinician}</option>
             </select>
-            <p className="text-xs leading-5 text-slate-500">Clinical accounts use approved medical staff access.</p>
+            <p className="text-xs leading-5 text-slate-500">{copy.clinicalHint}</p>
           </div>
         )}
 
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-semibold text-slate-800">
-            Email address
+            {copy.email}
           </Label>
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -216,10 +370,10 @@ export function LoginPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="password" className="text-sm font-semibold text-slate-800">
-              Password
+              {copy.password}
             </Label>
             <button type="button" className="text-sm font-medium text-sky-700 transition hover:text-sky-900">
-              Forgot password?
+              {copy.forgot}
             </button>
           </div>
           <div className="relative">
@@ -227,7 +381,7 @@ export function LoginPage() {
             <Input
               id="password"
               type={showPassword ? 'text' : 'password'}
-              placeholder="Enter your password"
+              placeholder={copy.passwordPlaceholder}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="h-12 rounded-2xl border-slate-200 bg-white px-12 text-base shadow-sm focus-visible:ring-sky-100"
@@ -237,7 +391,7 @@ export function LoginPage() {
               type="button"
               onClick={() => setShowPassword((current) => !current)}
               className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-label={showPassword ? copy.hidePassword : copy.showPassword}
             >
               {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
             </button>
@@ -245,21 +399,21 @@ export function LoginPage() {
         </div>
 
         <Button type="submit" className="h-12 w-full rounded-2xl bg-slate-950 text-base font-semibold hover:bg-slate-800" disabled={loading}>
-          {loading ? 'Signing in...' : 'Sign in'}
+          {loading ? copy.loading : copy.submit}
         </Button>
 
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
           <div className="mb-1 flex items-center gap-2 font-medium text-slate-800">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Secure access
+            {copy.secureTitle}
           </div>
-          Use the email and password linked to your ProstAPP account.
+          {copy.secureText}
         </div>
 
         <p className="text-center text-sm text-slate-600">
-          New to ProstAPP?{' '}
+          {copy.newText}{' '}
           <Link to="/signup" className="font-semibold text-sky-700 transition hover:text-sky-900">
-            Create an account
+            {copy.create}
           </Link>
         </p>
       </form>

@@ -2,12 +2,15 @@ import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { Toaster } from './components/ui/sonner';
 import { ThemeProvider } from './components/ThemeProvider';
+import { TranslationProvider } from './components/TranslationProvider';
 
 function App() {
   return (
     <ThemeProvider>
-      <RouterProvider router={router} />
-      <Toaster />
+      <TranslationProvider>
+        <RouterProvider router={router} />
+        <Toaster />
+      </TranslationProvider>
     </ThemeProvider>
   );
 }

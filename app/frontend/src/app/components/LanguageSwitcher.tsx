@@ -21,11 +21,11 @@ export function LanguageSwitcher({ className = '', size = 'sm' }: LanguageSwitch
     return () => window.removeEventListener('prostapp-language-change', handleLanguageChange);
   }, []);
 
-  const buttonPadding = size === 'md' ? 'px-3 py-1.5' : 'px-2.5 py-1.5';
+  const buttonPadding = size === 'md' ? 'px-2 py-1' : 'px-1.5 py-1';
 
   return (
     <div
-      className={`flex items-center gap-1 rounded-2xl border border-slate-200 bg-white/90 p-1 text-xs font-semibold text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 ${className}`}
+      className={`flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 ${className}`}
       aria-label="Language selector"
     >
       {languageOptions.map((option) => (
@@ -36,10 +36,10 @@ export function LanguageSwitcher({ className = '', size = 'sm' }: LanguageSwitch
             setLanguage(option.code);
             setPreferredLanguage(option.code);
           }}
-          className={`rounded-xl ${buttonPadding} transition ${
+          className={`${buttonPadding} transition ${
             language === option.code
-              ? 'bg-slate-950 text-white dark:bg-white dark:text-slate-950'
-              : 'hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-slate-800 dark:hover:text-white'
+              ? 'text-slate-950 underline underline-offset-4 dark:text-white'
+              : 'hover:text-slate-950 dark:hover:text-white'
           }`}
           aria-pressed={language === option.code}
         >
