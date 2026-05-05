@@ -16,8 +16,12 @@ import {
   MoreVertical,
   ArrowLeft,
   Plus,
+  Shield,
+  BarChart3,
+  Clock,
+  Loader,
 } from 'lucide-react';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,392 +31,350 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../components/ui/alert-dialog';
 import { clearUserSession, getStoredUser, isAdminUser } from '../auth/session';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 type UserRow = {
-  id: number;
+  id: string;
   name: string;
   email: string;
   joined: string;
-  status: 'active' | 'inactive';
-  riskLevel: 'Low' | 'Moderate' | 'High';
+  role: string;
 };
+
+type ReportRow = {
+  id: number;
+  user_email: string;
+  risk_level: string;
+  risk_score: number;
+  source: string;
+  created_at: string;
+};
+
+const shellClass =
+  'rounded-[2rem] border border-white/80 bg-white/90 shadow-xl shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/25';
 
 export function AdminPanel() {
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [users, setUsers] = useState<UserRow[]>([
-    { id: 1, name: 'John Smith', email: 'john.smith@email.com', joined: '2026-03-15', status: 'active', riskLevel: 'Low' },
-    { id: 2, name: 'Michael Brown', email: 'michael.b@email.com', joined: '2026-03-14', status: 'active', riskLevel: 'Moderate' },
-    { id: 3, name: 'Robert Johnson', email: 'robert.j@email.com', joined: '2026-03-12', status: 'active', riskLevel: 'Low' },
-    { id: 4, name: 'David Wilson', email: 'david.w@email.com', joined: '2026-03-10', status: 'active', riskLevel: 'High' },
-    { id: 5, name: 'James Davis', email: 'james.d@email.com', joined: '2026-03-08', status: 'inactive', riskLevel: 'Low' },
-  ]);
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [reports, setReports] = useState<ReportRow[]>([]);
   const [editingUser, setEditingUser] = useState<UserRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserRow | null>(null);
   const [isAddUserDialogOpen, setIsAddUserDialogOpen] = useState(false);
-  const [newUser, setNewUser] = useState({
-    name: '',
-    email: '',
-    status: 'active' as 'active' | 'inactive',
-    riskLevel: 'Low' as 'Low' | 'Moderate' | 'High',
-  });
+  const [newUser, setNewUser] = useState({ name: '', email: '', password: '' });
 
   useEffect(() => {
     const user = getStoredUser();
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-
-    if (!isAdminUser(user)) {
-      navigate('/login');
-    }
+    if (!user) { navigate('/login'); return; }
+    if (!isAdminUser(user)) { navigate('/login'); return; }
+    fetchData();
   }, [navigate]);
 
-  const stats = [
-    { label: 'Total Users', value: '1,247', change: '+12%', trend: 'up', icon: Users },
-    { label: 'Assessments This Month', value: '342', change: '+8%', trend: 'up', icon: Activity },
-    { label: 'High Risk Cases', value: '23', change: '-5%', trend: 'down', icon: TrendingUp },
-    { label: 'Active Appointments', value: '156', change: '+15%', trend: 'up', icon: FileText },
-  ];
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      const [usersRes, reportsRes] = await Promise.all([
+        supabase.from('users').select('*').order('created_at', { ascending: false }),
+        supabase.from('prediction_reports').select('*').order('created_at', { ascending: false }).limit(50),
+      ]);
 
-  const userGrowthData = [
-    { month: 'Jan', users: 850 },
-    { month: 'Feb', users: 920 },
-    { month: 'Mar', users: 1050 },
-    { month: 'Apr', users: 1180 },
-    { month: 'May', users: 1247 },
-  ];
+      if (usersRes.data) {
+        setUsers(usersRes.data.map((u: any) => ({
+          id: u.id,
+          name: `${u.user_first_name} ${u.user_last_name}`.trim(),
+          email: u.user_email,
+          joined: u.created_at,
+          role: u.is_clinician ? 'Clinician' : 'Patient',
+        })));
+      }
 
-  const assessmentData = [
-    { month: 'Jan', assessments: 245 },
-    { month: 'Feb', assessments: 278 },
-    { month: 'Mar', assessments: 312 },
-    { month: 'Apr', assessments: 298 },
-    { month: 'May', assessments: 342 },
-  ];
+      if (reportsRes.data) {
+        setReports(reportsRes.data.map((r: any) => ({
+          id: r.id,
+          user_email: r.user_email || 'Unknown',
+          risk_level: r.risk_level || 'N/A',
+          risk_score: r.risk_score ?? 0,
+          source: r.source || 'N/A',
+          created_at: r.created_at,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to fetch admin data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const riskDistributionData = [
-    { name: 'Low Risk', value: 856, color: '#22c55e' },
-    { name: 'Moderate Risk', value: 368, color: '#eab308' },
-    { name: 'High Risk', value: 23, color: '#ef4444' },
-  ];
+  const totalUsers = users.length;
+  const totalReports = reports.length;
+  const clinicianCount = users.filter(u => u.role === 'Clinician').length;
+
+  const riskDistribution = useMemo(() => {
+    const low = reports.filter(r => r.risk_level?.toLowerCase() === 'low').length;
+    const moderate = reports.filter(r => ['moderate', 'medium'].includes(r.risk_level?.toLowerCase())).length;
+    const high = reports.filter(r => r.risk_level?.toLowerCase() === 'high').length;
+    return [
+      { name: 'Low Risk', value: low || 0, color: '#22c55e' },
+      { name: 'Moderate', value: moderate || 0, color: '#f59e0b' },
+      { name: 'High Risk', value: high || 0, color: '#ef4444' },
+    ];
+  }, [reports]);
 
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return users;
-
-    return users.filter((user) => {
-      return (
-        user.name.toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query)
-      );
-    });
+    return users.filter(u => u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query));
   }, [searchQuery, users]);
 
-  const getRiskColor = (level: string) => {
-    switch (level) {
-      case 'Low':
-        return 'bg-green-100 text-green-800';
-      case 'Moderate':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'High':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const handleSaveUser = () => {
+  const handleSaveUser = async () => {
     if (!editingUser) return;
-
-    setUsers((currentUsers) =>
-      currentUsers.map((user) => (user.id === editingUser.id ? editingUser : user)),
-    );
+    const parts = editingUser.name.split(' ');
+    const { error } = await supabase.from('users').update({
+      user_first_name: parts[0] || '',
+      user_last_name: parts.slice(1).join(' ') || '',
+    }).eq('id', editingUser.id);
+    if (error) { toast.error(error.message); return; }
     setEditingUser(null);
-    toast.success('User updated successfully!');
+    toast.success('User updated!');
+    fetchData();
   };
 
-  const handleDeleteUser = () => {
+  const handleDeleteUser = async () => {
     if (!deleteTarget) return;
-
-    setUsers((currentUsers) => currentUsers.filter((user) => user.id !== deleteTarget.id));
+    const { error } = await supabase.from('users').delete().eq('id', deleteTarget.id);
+    if (error) { toast.error(error.message); return; }
     setDeleteTarget(null);
-    toast.success('User deleted successfully!');
+    toast.success('User removed.');
+    fetchData();
   };
 
-  const handleAddUser = () => {
-    if (!newUser.name || !newUser.email) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    const user: UserRow = {
-      id: Date.now(),
-      name: newUser.name,
-      email: newUser.email,
-      joined: new Date().toISOString().split('T')[0],
-      status: newUser.status,
-      riskLevel: newUser.riskLevel,
-    };
-
-    setUsers([user, ...users]);
-    setNewUser({ name: '', email: '', status: 'active', riskLevel: 'Low' });
+  const handleAddUser = async () => {
+    if (!newUser.name || !newUser.email) { toast.error('Name and email required.'); return; }
+    const parts = newUser.name.split(' ');
+    const { error } = await supabase.from('users').insert({
+      user_email: newUser.email,
+      user_first_name: parts[0] || '',
+      user_last_name: parts.slice(1).join(' ') || '',
+      user_hashed_password: 'admin_created',
+      user_phone_number: '0000000000',
+      is_clinician: false,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewUser({ name: '', email: '', password: '' });
     setIsAddUserDialogOpen(false);
-    toast.success('User added successfully!');
+    toast.success('User added!');
+    fetchData();
   };
+
+  const recentReports = reports.slice(0, 8);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
+        <div className="text-center space-y-4 animate-in fade-in">
+          <Loader className="h-10 w-10 animate-spin text-sky-600 mx-auto" />
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Loading admin dashboard…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="px-4 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-950/95">
+        <div className="px-4 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/admin" className="flex items-center gap-2">
-              <Activity className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">ProstAPP Admin</span>
+            <Link to="/admin" className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-600 text-white shadow-sm">
+                <Shield className="h-5 w-5" />
+              </div>
+              <span className="text-lg font-bold text-slate-900 dark:text-white">ProstAPP Admin</span>
             </Link>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link to="/dashboard/risk-assessment">
-              <Button variant="outline" size="sm">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to App
+              <Button variant="outline" size="sm" className="rounded-xl border-slate-200 dark:border-slate-700 dark:text-slate-100">
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back to App
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={() => {
-              clearUserSession();
-              navigate('/');
-            }}>
-              Logout
-            </Button>
+            <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => { clearUserSession(); navigate('/'); }}>Logout</Button>
           </div>
         </div>
       </header>
 
       <div className="p-4 lg:p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
-            <p className="text-gray-600">Monitor platform activity and manage users</p>
+        <div className="max-w-7xl mx-auto space-y-8">
+          {/* Title */}
+          <div className={`${shellClass} p-6`}>
+            <div className="mb-2 flex items-center gap-3 text-sm font-medium text-sky-700 dark:text-sky-300">
+              <BarChart3 className="h-5 w-5" /> Admin workspace
+            </div>
+            <h1 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">Dashboard Overview</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+              Real-time platform metrics from your Supabase database.
+            </p>
           </div>
 
-          {/* Stats Cards */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {stats.map((stat, index) => (
-              <Card key={index}>
-                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                  <CardTitle className="text-sm font-medium text-gray-600">{stat.label}</CardTitle>
-                  <stat.icon className="h-4 w-4 text-gray-500" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className={`text-xs mt-1 ${stat.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                    {stat.change} from last month
-                  </p>
+          {/* Stats */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: 'Total Users', value: totalUsers, icon: Users, accent: 'bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300' },
+              { label: 'Clinicians', value: clinicianCount, icon: Shield, accent: 'bg-violet-50 text-violet-700 dark:bg-violet-950/50 dark:text-violet-300' },
+              { label: 'Total Assessments', value: totalReports, icon: Activity, accent: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' },
+              { label: 'High Risk Cases', value: riskDistribution[2].value, icon: TrendingUp, accent: 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300' },
+            ].map((s) => (
+              <Card key={s.label} className="rounded-[1.75rem] border-white/80 bg-white/90 shadow-lg dark:border-slate-800 dark:bg-slate-900">
+                <CardContent className="flex items-center gap-4 p-5">
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-2xl ${s.accent}`}>
+                    <s.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{s.label}</p>
+                    <p className="text-2xl font-bold text-slate-950 dark:text-white">{s.value}</p>
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
 
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList>
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="users">Users</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsList className="rounded-2xl bg-slate-100 dark:bg-slate-900 p-1">
+              <TabsTrigger value="overview" className="rounded-xl">Overview</TabsTrigger>
+              <TabsTrigger value="users" className="rounded-xl">Users</TabsTrigger>
+              <TabsTrigger value="reports" className="rounded-xl">Reports</TabsTrigger>
             </TabsList>
 
+            {/* Overview Tab */}
             <TabsContent value="overview" className="space-y-6">
               <div className="grid lg:grid-cols-2 gap-6">
-                <Card>
+                {/* Risk Distribution */}
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
                   <CardHeader>
-                    <CardTitle>User Growth</CardTitle>
-                    <CardDescription>Total registered users over time</CardDescription>
+                    <CardTitle className="text-slate-950 dark:text-white">Risk Distribution</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">Breakdown across all saved assessments</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={userGrowthData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Line type="monotone" dataKey="users" stroke="#3b82f6" strokeWidth={2} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {reports.length > 0 ? (
+                      <>
+                        <div className="h-64">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={riskDistribution} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
+                                {riskDistribution.map((entry, i) => (<Cell key={i} fill={entry.color} />))}
+                              </Pie>
+                              <Tooltip />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 mt-4">
+                          {riskDistribution.map((item) => (
+                            <div key={item.name} className="text-center">
+                              <div className="flex items-center justify-center gap-2 mb-1">
+                                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{item.name}</span>
+                              </div>
+                              <p className="text-xl font-bold text-slate-950 dark:text-white">{item.value}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No assessment data available yet.</p>
+                    )}
                   </CardContent>
                 </Card>
 
-                <Card>
+                {/* Recent Activity */}
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
                   <CardHeader>
-                    <CardTitle>Assessments Completed</CardTitle>
-                    <CardDescription>Monthly assessment volume</CardDescription>
+                    <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-white">
+                      <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" /> Recent Assessments
+                    </CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">Latest prediction reports from all users</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={assessmentData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="month" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="assessments" fill="#22c55e" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {recentReports.length > 0 ? (
+                      <div className="space-y-3">
+                        {recentReports.map((r) => (
+                          <div key={r.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/80 p-3 dark:border-slate-800 dark:bg-slate-950/60">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{r.user_email}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {r.source === 'ml-invasive' ? 'PSA model' : r.source === 'ml-ftir' ? 'FTIR model' : 'Manual'} · {new Date(r.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <Badge className={`rounded-full px-2.5 py-0.5 text-xs border ${
+                              r.risk_level?.toLowerCase() === 'high' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200' :
+                              r.risk_level?.toLowerCase() === 'low' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200' :
+                              'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+                            }`}>{r.risk_level} ({r.risk_score})</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No reports available yet.</p>
+                    )}
                   </CardContent>
                 </Card>
               </div>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Risk Distribution</CardTitle>
-                  <CardDescription>Current risk level breakdown across all users</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-center">
-                    <div className="h-80 w-full max-w-md">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={riskDistributionData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={100}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {riskDistributionData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 mt-6">
-                    {riskDistributionData.map((item) => (
-                      <div key={item.name} className="text-center">
-                        <div className="flex items-center justify-center gap-2 mb-1">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                          <span className="text-sm font-medium">{item.name}</span>
-                        </div>
-                        <p className="text-2xl font-bold">{item.value}</p>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
             </TabsContent>
 
+            {/* Users Tab */}
             <TabsContent value="users">
-              <Card>
+              <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>User Management</CardTitle>
-                      <CardDescription>View and manage all platform users</CardDescription>
+                      <CardTitle className="text-slate-950 dark:text-white">User Management</CardTitle>
+                      <CardDescription className="text-slate-600 dark:text-slate-400">{totalUsers} registered users from Supabase</CardDescription>
                     </div>
-                    <Button onClick={() => setIsAddUserDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add New User
+                    <Button onClick={() => setIsAddUserDialogOpen(true)} className="rounded-2xl bg-sky-600 hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400">
+                      <Plus className="h-4 w-4 mr-2" /> Add User
                     </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-4 mb-6">
                     <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder="Search users by name or email..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10"
-                      />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                      <Input placeholder="Search users..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 rounded-xl" />
                     </div>
-                    <Select defaultValue="all">
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Users</SelectItem>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="inactive">Inactive</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Select defaultValue="all-risk">
-                      <SelectTrigger className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all-risk">All Risk Levels</SelectItem>
-                        <SelectItem value="low">Low Risk</SelectItem>
-                        <SelectItem value="moderate">Moderate Risk</SelectItem>
-                        <SelectItem value="high">High Risk</SelectItem>
-                      </SelectContent>
-                    </Select>
                   </div>
-
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
                     <Table>
                       <TableHeader>
-                        <TableRow>
+                        <TableRow className="bg-slate-50 dark:bg-slate-950">
+                          <TableHead>ID</TableHead>
                           <TableHead>Name</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>Joined</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Risk Level</TableHead>
+                          <TableHead>Role</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {filteredUsers.map((user) => (
                           <TableRow key={user.id}>
-                            <TableCell className="font-medium">{user.name}</TableCell>
-                            <TableCell>{user.email}</TableCell>
+                            <TableCell><Badge variant="outline" className="rounded-lg text-xs dark:border-slate-700 dark:text-slate-300">{user.id}</Badge></TableCell>
+                            <TableCell className="font-medium text-slate-900 dark:text-slate-100">{user.name}</TableCell>
+                            <TableCell className="text-slate-600 dark:text-slate-400">{user.email}</TableCell>
+                            <TableCell className="text-slate-600 dark:text-slate-400">{new Date(user.joined).toLocaleDateString()}</TableCell>
                             <TableCell>
-                              {new Date(user.joined).toLocaleDateString('en-US', {
-                                year: 'numeric',
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className={user.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                                {user.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className={getRiskColor(user.riskLevel)}>
-                                {user.riskLevel}
-                              </Badge>
+                              <Badge className={`rounded-full border px-2.5 py-0.5 text-xs ${user.role === 'Clinician' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200' : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'}`}>{user.role}</Badge>
                             </TableCell>
                             <TableCell>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm" aria-label={`Open actions for ${user.name}`}>
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
+                                  <Button variant="ghost" size="sm"><MoreVertical className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => setEditingUser({ ...user })}
-                                  >
-                                    Update
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    variant="destructive"
-                                    onClick={() => setDeleteTarget(user)}
-                                  >
-                                    Delete
-                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setEditingUser({ ...user })}>Edit</DropdownMenuItem>
+                                  <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(user)}>Delete</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -424,125 +386,61 @@ export function AdminPanel() {
                 </CardContent>
               </Card>
 
+              {/* Edit Dialog */}
               <Dialog open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)}>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>Update User</DialogTitle>
-                    <DialogDescription>Adjust the row details and save the change.</DialogDescription>
+                    <DialogTitle>Edit User</DialogTitle>
+                    <DialogDescription>Update user details.</DialogDescription>
                   </DialogHeader>
                   {editingUser && (
                     <div className="grid gap-4 py-2">
                       <div className="grid gap-2">
                         <label className="text-sm font-medium">Name</label>
-                        <Input
-                          value={editingUser.name}
-                          onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })}
-                        />
+                        <Input value={editingUser.name} onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })} />
                       </div>
                       <div className="grid gap-2">
-                        <label className="text-sm font-medium">Email</label>
-                        <Input
-                          value={editingUser.email}
-                          onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <label className="text-sm font-medium">Status</label>
-                        <Select value={editingUser.status} onValueChange={(value) => setEditingUser({ ...editingUser, status: value as UserRow['status'] })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <label className="text-sm font-medium">Risk Level</label>
-                        <Select value={editingUser.riskLevel} onValueChange={(value) => setEditingUser({ ...editingUser, riskLevel: value as UserRow['riskLevel'] })}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Low">Low</SelectItem>
-                            <SelectItem value="Moderate">Moderate</SelectItem>
-                            <SelectItem value="High">High</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <label className="text-sm font-medium">Email (read-only)</label>
+                        <Input value={editingUser.email} disabled className="opacity-60" />
                       </div>
                     </div>
                   )}
                   <DialogFooter>
                     <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
-                    <Button onClick={handleSaveUser}>Save Changes</Button>
+                    <Button onClick={handleSaveUser}>Save</Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
 
+              {/* Delete Dialog */}
               <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete user row?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove {deleteTarget?.name || 'this user'} from the table.
-                    </AlertDialogDescription>
+                    <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                    <AlertDialogDescription>This will remove {deleteTarget?.name} ({deleteTarget?.email}) permanently.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel onClick={() => setDeleteTarget(null)}>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={handleDeleteUser}>Delete</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
 
+              {/* Add User Dialog */}
               <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Add New User</DialogTitle>
-                    <DialogDescription>Create a new user account on the platform.</DialogDescription>
+                    <DialogDescription>Create a new user in the system.</DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 py-2">
                     <div className="grid gap-2">
-                      <label className="text-sm font-medium">Name *</label>
-                      <Input
-                        value={newUser.name}
-                        onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                        placeholder="Enter user's full name"
-                      />
+                      <label className="text-sm font-medium">Full Name *</label>
+                      <Input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="John Doe" />
                     </div>
                     <div className="grid gap-2">
                       <label className="text-sm font-medium">Email *</label>
-                      <Input
-                        type="email"
-                        value={newUser.email}
-                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                        placeholder="Enter user's email address"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Status</label>
-                      <Select value={newUser.status} onValueChange={(value) => setNewUser({ ...newUser, status: value as UserRow['status'] })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Risk Level</label>
-                      <Select value={newUser.riskLevel} onValueChange={(value) => setNewUser({ ...newUser, riskLevel: value as UserRow['riskLevel'] })}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Moderate">Moderate</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="user@example.com" />
                     </div>
                   </div>
                   <DialogFooter>
@@ -553,61 +451,54 @@ export function AdminPanel() {
               </Dialog>
             </TabsContent>
 
-            <TabsContent value="analytics">
-              <div className="grid gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Platform Analytics</CardTitle>
-                    <CardDescription>Detailed insights and metrics</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="p-4 bg-blue-50 rounded-lg">
-                        <p className="text-sm text-blue-900 mb-1">Avg. Risk Score</p>
-                        <p className="text-2xl font-bold text-blue-600">18.5</p>
-                      </div>
-                      <div className="p-4 bg-green-50 rounded-lg">
-                        <p className="text-sm text-green-900 mb-1">Completion Rate</p>
-                        <p className="text-2xl font-bold text-green-600">87%</p>
-                      </div>
-                      <div className="p-4 bg-purple-50 rounded-lg">
-                        <p className="text-sm text-purple-900 mb-1">Avg. Session Time</p>
-                        <p className="text-2xl font-bold text-purple-600">12m</p>
-                      </div>
-                      <div className="p-4 bg-orange-50 rounded-lg">
-                        <p className="text-sm text-orange-900 mb-1">Return Rate</p>
-                        <p className="text-2xl font-bold text-orange-600">62%</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Recent Activity</CardTitle>
-                    <CardDescription>Latest platform events and actions</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {[
-                        { action: 'New user registration', user: 'John Smith', time: '5 minutes ago' },
-                        { action: 'Risk assessment completed', user: 'Michael Brown', time: '12 minutes ago' },
-                        { action: 'Appointment scheduled', user: 'Robert Johnson', time: '28 minutes ago' },
-                        { action: 'Profile updated', user: 'David Wilson', time: '1 hour ago' },
-                        { action: 'Medical record added', user: 'James Davis', time: '2 hours ago' },
-                      ].map((activity, index) => (
-                        <div key={index} className="flex items-center justify-between py-3 border-b last:border-0">
-                          <div>
-                            <p className="font-medium text-gray-900">{activity.action}</p>
-                            <p className="text-sm text-gray-500">{activity.user}</p>
-                          </div>
-                          <span className="text-sm text-gray-500">{activity.time}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+            {/* Reports Tab */}
+            <TabsContent value="reports">
+              <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-white">
+                    <FileText className="h-5 w-5 text-sky-600 dark:text-sky-400" /> All Prediction Reports
+                  </CardTitle>
+                  <CardDescription className="text-slate-600 dark:text-slate-400">{totalReports} reports from the prediction_reports table</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto rounded-2xl border border-slate-100 dark:border-slate-800">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50 dark:bg-slate-950">
+                          <TableHead>ID</TableHead>
+                          <TableHead>User</TableHead>
+                          <TableHead>Risk Level</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Source</TableHead>
+                          <TableHead>Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {reports.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-slate-500 dark:text-slate-400">#{r.id}</TableCell>
+                            <TableCell className="font-medium text-slate-900 dark:text-slate-100">{r.user_email}</TableCell>
+                            <TableCell>
+                              <Badge className={`rounded-full border px-2.5 py-0.5 text-xs ${
+                                r.risk_level?.toLowerCase() === 'high' ? 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200' :
+                                r.risk_level?.toLowerCase() === 'low' ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200' :
+                                'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'
+                              }`}>{r.risk_level}</Badge>
+                            </TableCell>
+                            <TableCell className="text-slate-900 dark:text-slate-100 font-medium">{r.risk_score}/100</TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="rounded-lg text-xs dark:border-slate-700 dark:text-slate-300">
+                                {r.source === 'ml-invasive' ? 'PSA' : r.source === 'ml-ftir' ? 'FTIR' : r.source}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-slate-500 dark:text-slate-400">{new Date(r.created_at).toLocaleDateString()}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
           </Tabs>
         </div>

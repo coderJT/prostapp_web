@@ -215,53 +215,109 @@ export function RiskAssessment() {
     }
   };
 
-  const calculateRisk = () => {
-    // Simplified risk calculation for demo
-    let riskScore = 0;
-    
-    // Age factor
-    const age = parseInt(formData.age);
-    if (age >= 70) riskScore += 30;
-    else if (age >= 60) riskScore += 20;
-    else if (age >= 50) riskScore += 10;
+  const calculateRisk = async () => {
+    setLoading(true);
+    try {
+      // Map form data to the invasive model's expected CSV columns
+      const age = parseFloat(formData.age) || 50;
+      const psa = parseFloat(formData.psa) || 1.0;
+      const familyHistory = formData.familyHistory === 'yes' ? 1 : 0;
+      const hasSymptoms = formData.symptoms === 'yes' ? 1 : 0;
 
-    // Family history
-    if (formData.familyHistory === 'yes') riskScore += 25;
+      // Build a CSV string matching invasive model headers
+      const headers = invasiveExpectedHeaders.join(',');
+      const raceC = formData.ethnicity === 'caucasian' ? 1 : 0;
+      const raceI = formData.ethnicity === 'asian' ? 1 : 0;
+      const raceM = formData.ethnicity === 'african' || formData.ethnicity === 'hispanic' ? 1 : 0;
+      const regionRural = 0;
+      const values = [
+        age,          // age
+        psa,          // psa_(ng/ml)
+        75,           // body_weight_(kg) - default
+        170,          // height_(cm) - default
+        familyHistory,// family_history_prostate_cancer
+        2,            // educational_background - default
+        hasSymptoms,  // hypertension (proxy for symptoms)
+        0, 0, 0, 0, 0, 0, 0, // heart_disease through other_disease - defaults
+        regionRural, raceC, raceI, raceM,
+      ].join(',');
 
-    // PSA level
-    const psa = parseFloat(formData.psa);
-    if (psa > 10) riskScore += 30;
-    else if (psa > 4) riskScore += 20;
-    else if (psa > 2.5) riskScore += 10;
+      const csvContent = `${headers}\n${values}`;
+      const csvBlob = new Blob([csvContent], { type: 'text/csv' });
+      const csvFileObj = new File([csvBlob], 'manual_entry.csv', { type: 'text/csv' });
 
-    // Symptoms
-    if (formData.symptoms === 'yes') riskScore += 15;
+      const formDataToSend = new FormData();
+      formDataToSend.append('file', csvFileObj);
+      formDataToSend.append('modelType', 'xgb');
 
-    // Determine risk level
-    let riskLevel = 'Low';
-    let riskColor = 'green';
-    if (riskScore >= 60) {
-      riskLevel = 'High';
-      riskColor = 'red';
-    } else if (riskScore >= 30) {
-      riskLevel = 'Moderate';
-      riskColor = 'yellow';
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user?.email) formDataToSend.append('userEmail', user.email);
+        } catch (e) {
+          console.error('Could not parse user:', e);
+        }
+      }
+
+      const predictEndpoint = buildApiUrl('/api/predict-invasive');
+      const shapEndpoint = buildApiUrl('/api/shap-invasive');
+
+      if (!predictEndpoint) {
+        throw new Error('Prediction backend unavailable.');
+      }
+
+      const [predictResponse, shapResponse] = await Promise.all([
+        fetch(predictEndpoint, { method: 'POST', body: formDataToSend }),
+        shapEndpoint ? fetch(shapEndpoint, { method: 'POST', body: formDataToSend }).catch(() => null) : Promise.resolve(null),
+      ]);
+
+      if (!predictResponse.ok) throw new Error('Prediction failed');
+
+      const data = await predictResponse.json();
+      let shapData = null;
+      if (shapResponse && shapResponse.ok) {
+        try { shapData = await shapResponse.json(); } catch {} 
+      }
+
+      if (!data.success) throw new Error(data.error || 'Invalid response from server');
+
+      const predictionClass = typeof data.prediction !== 'undefined' ? data.prediction : data.result;
+      const predictionProbability = toProbability(data.probability) ?? toProbability(data.prediction_probability) ?? toProbability(data.risk_probability) ?? toProbability(predictionClass);
+
+      if (predictionProbability === null) throw new Error('Prediction probability missing from server response');
+
+      const riskScore = Math.round(predictionProbability * 100);
+      let riskLevel = 'Low';
+      let riskColor = 'green';
+      if (riskScore >= 60) { riskLevel = 'High'; riskColor = 'red'; }
+      else if (riskScore >= 30) { riskLevel = 'Moderate'; riskColor = 'yellow'; }
+
+      const newResult = {
+        score: riskScore,
+        level: riskLevel,
+        color: riskColor,
+        date: new Date().toLocaleDateString(),
+        csvBased: true,
+        csvType: 'invasive' as const,
+        predictionValue: predictionProbability,
+        predictionClass,
+        csvFileName: 'Manual entry (PSA model)',
+        limeSummary: data.lime_summary || null,
+        shapSummary: shapData?.shap_summary || data.shap_summary || null,
+        topLimeFeatures: data?.lime?.top_features || [],
+        topShapFeatures: shapData?.global_importance || data?.shap?.global_importance || [],
+        featureNotes: data?.lime_feature_notes || [],
+      };
+
+      setResult(newResult);
+      saveAssessmentResult(newResult);
+      toast.success('PSA model prediction completed!');
+    } catch (error) {
+      toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
     }
-
-    const newResult = {
-      score: riskScore,
-      level: riskLevel,
-      color: riskColor,
-      date: new Date().toLocaleDateString(),
-      csvBased: false,
-    };
-
-    setResult(newResult);
-
-    // Save to localStorage for Results page
-    saveAssessmentResult(newResult);
-    
-    toast.success('Risk assessment completed!');
   };
 
   const saveAssessmentResult = (result: any) => {
@@ -301,8 +357,8 @@ export function RiskAssessment() {
     }
   };
 
-  const handleSubmit = () => {
-    calculateRisk();
+  const handleSubmit = async () => {
+    await calculateRisk();
   };
 
   const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -703,7 +759,14 @@ export function RiskAssessment() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={() => setResult(null)} variant="outline" className={`${outlineButtonClass} flex-1`}>
+              <Button onClick={() => {
+                setResult(null);
+                setStep(1);
+                setAssessmentMode('form');
+                setCsvFile(null);
+                setCsvType(null);
+                setFormData({ age: '', familyHistory: '', psa: '', symptoms: '', ethnicity: '', lifestyle: '' });
+              }} variant="outline" className={`${outlineButtonClass} flex-1`}>
                 <RotateCcw className="h-4 w-4" />
                 Start a new assessment
               </Button>
@@ -1059,8 +1122,8 @@ export function RiskAssessment() {
                 Next
               </Button>
             ) : (
-              <Button onClick={handleSubmit} className={`${primaryButtonClass} flex-1`}>
-                Calculate risk
+              <Button onClick={handleSubmit} disabled={loading} className={`${primaryButtonClass} flex-1`}>
+                {loading ? <><Loader className="h-4 w-4 mr-2 animate-spin" /> Running PSA model...</> : 'Calculate risk (PSA model)'}
               </Button>
             )}
           </div>
