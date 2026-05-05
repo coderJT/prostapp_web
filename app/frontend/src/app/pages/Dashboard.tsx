@@ -123,43 +123,46 @@ export function Dashboard() {
             </Link>
           </div>
           <div className="flex items-center gap-4">
-            <Link
-              to="/dashboard/mail"
-              className={`
-                inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors
-                ${location.pathname === '/dashboard/mail'
-                  ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
-                }
-              `}
-            >
-              <Mail className="h-4 w-4" />
-              <span className="hidden sm:inline">Mail</span>
-            </Link>
-            {user?.role === 'admin' && (
+            {/* Desktop-only header items */}
+            <div className="hidden lg:flex items-center gap-4">
               <Link
-                to="/admin"
+                to="/dashboard/mail"
                 className={`
                   inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors
-                  ${location.pathname === '/admin'
-                    ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200'
+                  ${location.pathname === '/dashboard/mail'
+                    ? 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200'
                     : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
                   }
                 `}
               >
-                <User className="h-4 w-4" />
-                <span className="hidden sm:inline">Admin</span>
+                <Mail className="h-4 w-4" />
+                <span>Mail</span>
               </Link>
-            )}
-            <ThemeToggle />
-            <div className="hidden sm:block text-right">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.name || user?.email}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role === 'admin' ? 'Admin Account' : 'Patient Account'}</p>
+              {user?.role === 'admin' && (
+                <Link
+                  to="/admin"
+                  className={`
+                    inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-medium transition-colors
+                    ${location.pathname === '/admin'
+                      ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950/30 dark:text-violet-200'
+                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800'
+                    }
+                  `}
+                >
+                  <User className="h-4 w-4" />
+                  <span>Admin</span>
+                </Link>
+              )}
+              <ThemeToggle />
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{user?.name || user?.email}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{user?.role === 'admin' ? 'Admin Account' : 'Patient Account'}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
             </div>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
           </div>
         </div>
       </header>
@@ -254,6 +257,61 @@ export function Dashboard() {
               <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                 Your recent predictions, explanations, and appointments stay connected across the dashboard.
               </p>
+            </div>
+
+            {/* Mobile-only sidebar actions */}
+            <div className="mt-4 space-y-2 lg:hidden">
+              <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500">Actions</p>
+              <Link
+                to="/dashboard/mail"
+                onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                className={`
+                  flex items-center gap-3 rounded-[1.35rem] border px-3 py-3 transition-all
+                  ${location.pathname === '/dashboard/mail'
+                    ? 'border-sky-200 bg-sky-50 shadow-sm dark:border-sky-800 dark:bg-sky-950/30'
+                    : 'border-transparent text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-slate-800 dark:hover:bg-slate-900'
+                  }
+                `}
+              >
+                <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl ${location.pathname === '/dashboard/mail' ? 'bg-sky-600 text-white dark:bg-sky-500' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                  <Mail className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Mail</p>
+                  <p className="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">View messages</p>
+                </div>
+              </Link>
+              {user?.role === 'admin' && (
+                <Link
+                  to="/admin"
+                  onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                  className="flex items-center gap-3 rounded-[1.35rem] border border-transparent px-3 py-3 text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:text-slate-300 dark:hover:border-slate-800 dark:hover:bg-slate-900 transition-all"
+                >
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-900 dark:text-violet-300">
+                    <User className="h-4.5 w-4.5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Admin Panel</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">Manage users &amp; reports</p>
+                  </div>
+                </Link>
+              )}
+              <div className="flex items-center gap-3 rounded-[1.35rem] border border-transparent px-3 py-2">
+                <ThemeToggle />
+                <span className="text-sm text-slate-600 dark:text-slate-400">Toggle theme</span>
+              </div>
+              <button
+                onClick={() => { setSidebarOpen(false); handleLogout(); }}
+                className="flex w-full items-center gap-3 rounded-[1.35rem] border border-transparent px-3 py-3 text-rose-600 hover:border-rose-200 hover:bg-rose-50 dark:text-rose-400 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 transition-all"
+              >
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400">
+                  <LogOut className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0 flex-1 text-left">
+                  <p className="text-sm font-semibold">Logout</p>
+                  <p className="mt-0.5 text-xs leading-5 text-rose-500/70 dark:text-rose-400/60">End your session</p>
+                </div>
+              </button>
             </div>
           </div>
         </aside>
