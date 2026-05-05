@@ -316,35 +316,35 @@ export function LandingPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#e0f2fe_0,_transparent_34%),linear-gradient(135deg,_#f8fafc_0%,_#eef6ff_48%,_#f7fbf8_100%)] text-slate-950">
-      <header className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-white/70 bg-white/80 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/90">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link to={storedUser ? appPath : '/'} className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-sky-200 shadow-lg shadow-slate-200">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-sky-200 shadow-lg shadow-slate-200 dark:bg-white dark:text-slate-950 dark:shadow-black/30">
               <Activity className="h-6 w-6" />
             </span>
             <span>
-              <span className="block text-lg font-semibold leading-5 tracking-normal">ProstAPP</span>
-              <span className="hidden text-xs text-slate-500 sm:block">{copy.tagline}</span>
+              <span className="block text-lg font-semibold leading-5 tracking-normal text-slate-950 dark:text-white">ProstAPP</span>
+              <span className="hidden text-xs text-slate-500 dark:text-slate-400 sm:block">{copy.tagline}</span>
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
-            <a href="#how-it-works" className="transition hover:text-slate-950">{copy.nav[0]}</a>
-            <a href="#support" className="transition hover:text-slate-950">{copy.nav[1]}</a>
-            <a href="#privacy" className="transition hover:text-slate-950">{copy.nav[2]}</a>
+          <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
+            <a href="#how-it-works" className="transition hover:text-slate-950 dark:hover:text-white">{copy.nav[0]}</a>
+            <a href="#support" className="transition hover:text-slate-950 dark:hover:text-white">{copy.nav[1]}</a>
+            <a href="#privacy" className="transition hover:text-slate-950 dark:hover:text-white">{copy.nav[2]}</a>
           </nav>
 
           <div className="flex items-center gap-2">
             {storedUser ? (
-              <Button asChild className="rounded-2xl bg-slate-950 px-5 text-white hover:bg-slate-800">
+              <Button asChild className="rounded-2xl bg-slate-950 px-5 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
                 <Link to={appPath}>{copy.openDashboard}</Link>
               </Button>
             ) : (
               <>
-                <Button asChild variant="ghost" className="rounded-2xl text-slate-700 hover:text-slate-950">
+                <Button asChild variant="ghost" className="rounded-2xl text-slate-700 hover:text-slate-950 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white">
                   <Link to="/login">{copy.signIn}</Link>
                 </Button>
-                <Button asChild className="rounded-2xl bg-slate-950 px-5 text-white hover:bg-slate-800">
+                <Button asChild className="rounded-2xl bg-slate-950 px-5 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200">
                   <Link to="/signup">{copy.createAccount}</Link>
                 </Button>
               </>
@@ -352,7 +352,7 @@ export function LandingPage() {
             <LanguageSwitcher className="hidden shrink-0 md:flex" />
           </div>
         </div>
-        <div className="border-t border-slate-100 px-4 py-2 md:hidden">
+        <div className="border-t border-slate-100 px-4 py-2 dark:border-slate-800 md:hidden">
           <div className="mx-auto flex max-w-6xl justify-end">
             <LanguageSwitcher size="md" />
           </div>
