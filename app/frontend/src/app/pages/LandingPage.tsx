@@ -349,7 +349,12 @@ export function LandingPage() {
                 </Button>
               </>
             )}
-            <LanguageSwitcher className="shrink-0" />
+            <LanguageSwitcher className="hidden shrink-0 md:flex" />
+          </div>
+        </div>
+        <div className="border-t border-slate-100 px-4 py-2 md:hidden">
+          <div className="mx-auto flex max-w-6xl justify-end">
+            <LanguageSwitcher size="md" />
           </div>
         </div>
       </header>

@@ -241,8 +241,11 @@ export function AdminPanel() {
               <LogOut className="h-4 w-4 lg:mr-2" />
               <span className="hidden lg:inline">Logout</span>
             </Button>
-            <LanguageSwitcher />
+            <LanguageSwitcher className="hidden md:flex" />
           </div>
+        </div>
+        <div className="border-t border-slate-100 px-4 py-2 dark:border-slate-800 md:hidden">
+          <LanguageSwitcher className="justify-end" size="md" />
         </div>
       </header>
 
