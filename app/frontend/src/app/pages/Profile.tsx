@@ -188,12 +188,16 @@ export function Profile() {
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
           try {
-            const { error: updateError } = await supabase
+            const { data, error: updateError } = await supabase
               .from('users')
               .update({ avatar_url: compressedDataUrl })
-              .eq('user_email', user.email);
+              .eq('user_email', user.email)
+              .select();
 
             if (updateError) throw updateError;
+            if (!data || data.length === 0) {
+              throw new Error('User record not found in database to update.');
+            }
 
             setAvatarUrl(compressedDataUrl);
             
