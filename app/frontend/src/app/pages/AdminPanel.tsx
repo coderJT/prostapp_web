@@ -20,6 +20,7 @@ import {
   BarChart3,
   Clock,
   Loader,
+  LogOut,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from 'recharts';
 import {
@@ -235,7 +236,10 @@ export function AdminPanel() {
                 <ArrowLeft className="h-4 w-4 mr-2" /> Back to App
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => { clearUserSession(); navigate('/'); }}>Logout</Button>
+            <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => { clearUserSession(); navigate('/'); }}>
+              <LogOut className="h-4 w-4 lg:mr-2" />
+              <span className="hidden lg:inline">Logout</span>
+            </Button>
           </div>
         </div>
       </header>
