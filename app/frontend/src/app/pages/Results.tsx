@@ -137,12 +137,16 @@ function toPercent(value: number | null | undefined) {
 export function Results() {
   const navigate = useNavigate();
   const [entries, setEntries] = useState<PredictionHistoryEntry[]>(() => getPredictionHistoryForCurrentUser());
+  const [isLoading, setIsLoading] = useState(entries.length === 0);
 
   useEffect(() => {
     loadPredictionHistoryForCurrentUser()
-      .then(setEntries)
+      .then((data) => {
+        setEntries(data);
+        setIsLoading(false);
+      })
       .catch(() => {
-        // Fallback stays on local history when the API is unavailable.
+        setIsLoading(false);
       });
   }, []);
 
@@ -268,6 +272,51 @@ export function Results() {
 
     toast.success('Report exported successfully!');
   };
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-6xl space-y-8 animate-in fade-in duration-500">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-3">
+            <div className="h-9 w-64 rounded-xl bg-slate-200 dark:bg-slate-800/80 animate-pulse"></div>
+            <div className="h-5 w-96 rounded-lg bg-slate-100 dark:bg-slate-800/50 animate-pulse"></div>
+          </div>
+          <div className="flex gap-3">
+            <div className="h-10 w-24 rounded-xl bg-slate-200 dark:bg-slate-800/80 animate-pulse"></div>
+            <div className="h-10 w-32 rounded-xl bg-slate-200 dark:bg-slate-800/80 animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 animate-pulse">
+          <div className="h-5 w-48 rounded-lg bg-slate-200 dark:bg-slate-800/80 mb-4"></div>
+          <div className="space-y-3">
+            <div className="h-4 w-full rounded bg-slate-100 dark:bg-slate-800/50"></div>
+            <div className="h-4 w-5/6 rounded bg-slate-100 dark:bg-slate-800/50"></div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6">
+              <div className="h-5 w-32 rounded-lg bg-slate-200 dark:bg-slate-800/80 mb-6 animate-pulse"></div>
+              <div className="flex justify-between items-center">
+                <div className="space-y-3">
+                  <div className="h-10 w-24 rounded-xl bg-slate-200 dark:bg-slate-800/80 animate-pulse"></div>
+                  <div className="h-4 w-20 rounded bg-slate-100 dark:bg-slate-800/50 animate-pulse"></div>
+                </div>
+                <div className="h-12 w-12 rounded-full bg-slate-200 dark:bg-slate-800/80 animate-pulse"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 h-96 animate-pulse">
+          <div className="h-8 w-64 rounded-xl bg-slate-200 dark:bg-slate-800/80 mb-8"></div>
+          <div className="h-64 w-full rounded-xl bg-slate-100 dark:bg-slate-800/50"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (entries.length === 0) {
     return (

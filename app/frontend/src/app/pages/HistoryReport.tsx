@@ -194,15 +194,19 @@ export function HistoryReport() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [entries, setEntries] = useState<PredictionHistoryEntry[]>(() => getPredictionHistoryForCurrentUser());
+  const [isLoading, setIsLoading] = useState(entries.length === 0);
   const reportId = searchParams.get('report');
   const [selectedId, setSelectedId] = useState<string | null>(reportId || entries[0]?.id || null);
   const [isRailOpen, setIsRailOpen] = useState(true);
 
   useEffect(() => {
     loadPredictionHistoryForCurrentUser()
-      .then(setEntries)
+      .then((data) => {
+        setEntries(data);
+        setIsLoading(false);
+      })
       .catch(() => {
-        // Fallback stays on local history when the API is unavailable.
+        setIsLoading(false);
       });
   }, []);
 
@@ -298,6 +302,61 @@ export function HistoryReport() {
       </ResponsiveContainer>
     );
   };
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-7xl space-y-6 animate-in fade-in duration-500">
+        <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 animate-pulse">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-4">
+              <div className="h-5 w-48 rounded-lg bg-slate-200 dark:bg-slate-800/80"></div>
+              <div className="h-10 w-64 rounded-xl bg-slate-200 dark:bg-slate-800/80"></div>
+              <div className="h-12 w-full max-w-3xl rounded-xl bg-slate-100 dark:bg-slate-800/50"></div>
+            </div>
+            <div className="flex gap-3">
+              <div className="h-10 w-32 rounded-xl bg-slate-200 dark:bg-slate-800/80"></div>
+              <div className="h-10 w-32 rounded-xl bg-slate-200 dark:bg-slate-800/80"></div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 h-[calc(100vh-14rem)] animate-pulse">
+            <div className="h-6 w-32 rounded-lg bg-slate-200 dark:bg-slate-800/80 mb-6"></div>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="h-24 w-full rounded-2xl bg-slate-100 dark:bg-slate-800/50"></div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+              <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 h-80 animate-pulse">
+                <div className="flex items-center gap-4 mb-8">
+                  <div className="h-12 w-12 rounded-2xl bg-slate-200 dark:bg-slate-800/80"></div>
+                  <div className="h-6 w-48 rounded-lg bg-slate-200 dark:bg-slate-800/80"></div>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-24 w-full rounded-2xl bg-slate-100 dark:bg-slate-800/50"></div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-[2rem] border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 p-6 h-80 animate-pulse">
+                <div className="h-6 w-40 rounded-lg bg-slate-200 dark:bg-slate-800/80 mb-8"></div>
+                <div className="space-y-4">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-12 w-full rounded-2xl bg-slate-100 dark:bg-slate-800/50"></div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (entries.length === 0) {
     return (
