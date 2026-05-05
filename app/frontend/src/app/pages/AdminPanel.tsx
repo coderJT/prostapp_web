@@ -21,7 +21,7 @@ import {
   Clock,
   Loader,
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, LineChart, Line } from 'recharts';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,6 +121,39 @@ export function AdminPanel() {
       { name: 'Moderate', value: moderate || 0, color: '#f59e0b' },
       { name: 'High Risk', value: high || 0, color: '#ef4444' },
     ];
+  }, [reports]);
+
+  // Source breakdown: how many assessments from each method
+  const sourceBreakdown = useMemo(() => {
+    const psaCount = reports.filter(r => r.source === 'ml-invasive').length;
+    const ftirCount = reports.filter(r => r.source === 'ml-ftir').length;
+    const formCount = reports.filter(r => r.source === 'form' || !['ml-invasive', 'ml-ftir'].includes(r.source)).length;
+    return [
+      { name: 'PSA/Invasive', count: psaCount, fill: '#3b82f6' },
+      { name: 'FTIR', count: ftirCount, fill: '#10b981' },
+      { name: 'Manual Entry', count: formCount, fill: '#8b5cf6' },
+    ];
+  }, [reports]);
+
+  // Risk trend: group reports by month
+  const riskTrend = useMemo(() => {
+    const months: Record<string, { month: string; low: number; moderate: number; high: number }> = {};
+    reports.forEach(r => {
+      const d = new Date(r.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[key]) months[key] = { month: key, low: 0, moderate: 0, high: 0 };
+      const lvl = r.risk_level?.toLowerCase();
+      if (lvl === 'low') months[key].low++;
+      else if (lvl === 'high') months[key].high++;
+      else months[key].moderate++;
+    });
+    return Object.values(months).sort((a, b) => a.month.localeCompare(b.month));
+  }, [reports]);
+
+  // Average risk score
+  const avgRiskScore = useMemo(() => {
+    if (reports.length === 0) return 0;
+    return Math.round(reports.reduce((sum, r) => sum + (r.risk_score || 0), 0) / reports.length);
   }, [reports]);
 
   const filteredUsers = useMemo(() => {
@@ -245,6 +278,7 @@ export function AdminPanel() {
           <Tabs defaultValue="overview" className="space-y-6">
             <TabsList className="rounded-2xl bg-slate-100 dark:bg-slate-900 p-1">
               <TabsTrigger value="overview" className="rounded-xl">Overview</TabsTrigger>
+              <TabsTrigger value="insights" className="rounded-xl">Insights</TabsTrigger>
               <TabsTrigger value="users" className="rounded-xl">Users</TabsTrigger>
               <TabsTrigger value="reports" className="rounded-xl">Reports</TabsTrigger>
             </TabsList>
@@ -318,6 +352,95 @@ export function AdminPanel() {
                       </div>
                     ) : (
                       <p className="text-sm text-slate-500 dark:text-slate-400">No reports available yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* Insights Tab */}
+            <TabsContent value="insights" className="space-y-6">
+              {/* Quick Stats Row */}
+              <div className="grid md:grid-cols-3 gap-4">
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Average Risk Score</p>
+                    <p className="text-4xl font-bold text-slate-950 dark:text-white">{avgRiskScore}<span className="text-lg text-slate-400">/100</span></p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">Most Used Model</p>
+                    <p className="text-2xl font-bold text-slate-950 dark:text-white">
+                      {sourceBreakdown.sort((a, b) => b.count - a.count)[0]?.name || 'N/A'}
+                    </p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{sourceBreakdown.sort((a, b) => b.count - a.count)[0]?.count || 0} assessments</p>
+                  </CardContent>
+                </Card>
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                  <CardContent className="p-5 text-center">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1">High Risk Rate</p>
+                    <p className="text-4xl font-bold text-rose-600 dark:text-rose-400">
+                      {totalReports > 0 ? Math.round((riskDistribution[2].value / totalReports) * 100) : 0}%
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                {/* Assessment Source Breakdown */}
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                  <CardHeader>
+                    <CardTitle className="text-slate-950 dark:text-white">Assessment Source Breakdown</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">Which prediction methods are being used</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {totalReports > 0 ? (
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={sourceBreakdown} layout="vertical" margin={{ left: 20 }}>
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                            <XAxis type="number" />
+                            <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={100} />
+                            <Tooltip contentStyle={{ borderRadius: '1rem', border: '1px solid #d1d5db' }} />
+                            <Bar dataKey="count" radius={[0, 12, 12, 0]}>
+                              {sourceBreakdown.map((entry, i) => (
+                                <Cell key={i} fill={entry.fill} />
+                              ))}
+                            </Bar>
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No data yet.</p>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Risk Trend Over Time */}
+                <Card className="rounded-[2rem] dark:border-slate-800 dark:bg-slate-900">
+                  <CardHeader>
+                    <CardTitle className="text-slate-950 dark:text-white">Risk Trends Over Time</CardTitle>
+                    <CardDescription className="text-slate-600 dark:text-slate-400">Monthly breakdown of risk levels</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {riskTrend.length > 0 ? (
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={riskTrend}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                            <YAxis />
+                            <Tooltip contentStyle={{ borderRadius: '1rem', border: '1px solid #d1d5db' }} />
+                            <Legend />
+                            <Bar dataKey="low" name="Low" fill="#22c55e" stackId="a" radius={[0, 0, 0, 0]} />
+                            <Bar dataKey="moderate" name="Moderate" fill="#f59e0b" stackId="a" />
+                            <Bar dataKey="high" name="High" fill="#ef4444" stackId="a" radius={[8, 8, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No data yet.</p>
                     )}
                   </CardContent>
                 </Card>

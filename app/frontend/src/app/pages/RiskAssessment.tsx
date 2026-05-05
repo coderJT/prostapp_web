@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -19,9 +19,11 @@ import {
   Loader,
   RotateCcw,
   TrendingUp,
+  Waves,
 } from 'lucide-react';
 import { savePredictionHistoryEntry } from '../historyStore';
 import { buildApiUrl } from '../lib/api';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 const escapePdfText = (value: string) =>
   value
@@ -172,6 +174,7 @@ export function RiskAssessment() {
     ethnicity: '',
     lifestyle: '',
   });
+  const [ftirSpectrumData, setFtirSpectrumData] = useState<{wavenumber: number; absorbance: number}[]>([]);
 
   const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
@@ -445,6 +448,32 @@ export function RiskAssessment() {
       if (!validation.valid) {
         toast.error(validation.message);
         return;
+      }
+
+      // Parse FTIR spectrum data for visualisation
+      if (type === 'ftir') {
+        try {
+          const csvText = await csvFile.text();
+          const lines = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+          if (lines.length >= 2) {
+            const headers = lines[0].split(',').map(h => h.trim());
+            const values = lines[1].split(',').map(v => parseFloat(v.trim()));
+            const spectrum: {wavenumber: number; absorbance: number}[] = [];
+            headers.forEach((h, i) => {
+              const wn = parseFloat(h);
+              if (!isNaN(wn) && wn >= 400 && wn <= 4000 && !isNaN(values[i])) {
+                spectrum.push({ wavenumber: wn, absorbance: values[i] });
+              }
+            });
+            spectrum.sort((a, b) => a.wavenumber - b.wavenumber);
+            if (spectrum.length > 500) {
+              const step = Math.ceil(spectrum.length / 500);
+              setFtirSpectrumData(spectrum.filter((_, i) => i % step === 0));
+            } else {
+              setFtirSpectrumData(spectrum);
+            }
+          }
+        } catch { /* spectrum parsing is best-effort */ }
       }
 
       const formDataToSend = new FormData();
@@ -784,6 +813,64 @@ export function RiskAssessment() {
               >
                 View full report
               </Button>
+            )}
+
+            {/* FTIR Spectral Visualiser */}
+            {result.csvType === 'ftir' && ftirSpectrumData.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-300">
+                    <Waves className="h-6 w-6" />
+                  </span>
+                  <div>
+                    <h4 className="font-semibold text-slate-950 dark:text-white">Raw FTIR Absorbance Spectrum</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Your uploaded spectral data before PCA compression</p>
+                  </div>
+                </div>
+                <div className="rounded-3xl border border-emerald-100 bg-emerald-50/50 p-5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                  <div className="h-72">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={ftirSpectrumData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                        <defs>
+                          <linearGradient id="spectrumGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                        <XAxis dataKey="wavenumber" tick={{ fontSize: 11 }} label={{ value: 'Wavenumber (cm⁻¹)', position: 'insideBottom', offset: -2, fontSize: 12 }} />
+                        <YAxis tick={{ fontSize: 11 }} label={{ value: 'Absorbance', angle: -90, position: 'insideLeft', fontSize: 12 }} />
+                        <RechartsTooltip
+                          contentStyle={{ borderRadius: '1rem', border: '1px solid #d1d5db', fontSize: 12 }}
+                          formatter={(value: number) => [value.toFixed(4), 'Absorbance']}
+                          labelFormatter={(label: number) => `${label} cm⁻¹`}
+                        />
+                        <Area type="monotone" dataKey="absorbance" stroke="#10b981" strokeWidth={1.5} fill="url(#spectrumGrad)" dot={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
+                      {ftirSpectrumData.length} data points
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+                      Range: {ftirSpectrumData[0]?.wavenumber}–{ftirSpectrumData[ftirSpectrumData.length - 1]?.wavenumber} cm⁻¹
+                    </span>
+                  </div>
+                </div>
+
+                {/* PCA Pipeline Note */}
+                <div className="rounded-2xl border border-sky-100 bg-sky-50/60 p-4 dark:border-sky-900/50 dark:bg-sky-950/30">
+                  <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 mb-1.5">How the prediction works</p>
+                  <p className="text-xs leading-5 text-sky-700 dark:text-sky-300">
+                    Your raw spectrum ({ftirSpectrumData.length} wavenumber points) is first compressed via
+                    <strong> Principal Component Analysis (PCA)</strong> into 103 components that capture the key variance in the spectral data.
+                    The classifier (XGBoost or LightGBM) then predicts cancer risk from these PCA components.
+                    LIME and SHAP explanations reference PCA component indices (e.g. Column_42), not individual wavenumbers, since the model operates in PCA-reduced space.
+                  </p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
