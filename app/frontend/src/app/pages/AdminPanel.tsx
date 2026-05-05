@@ -491,13 +491,13 @@ export function AdminPanel() {
                               <Badge className={`rounded-full border px-2.5 py-0.5 text-xs ${user.role === 'Clinician' ? 'border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-900 dark:bg-violet-950/40 dark:text-violet-200' : 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-200'}`}>{user.role}</Badge>
                             </TableCell>
                             <TableCell>
-                              <DropdownMenu>
+                              <DropdownMenu modal={false}>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="sm"><MoreVertical className="h-4 w-4" /></Button>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><MoreVertical className="h-4 w-4" /></Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem onClick={() => setEditingUser({ ...user })}>Edit</DropdownMenuItem>
-                                  <DropdownMenuItem variant="destructive" onClick={() => setDeleteTarget(user)}>Delete</DropdownMenuItem>
+                                <DropdownMenuContent align="end" className="z-[100]">
+                                  <DropdownMenuItem onSelect={() => setEditingUser({ ...user })}>Edit</DropdownMenuItem>
+                                  <DropdownMenuItem variant="destructive" onSelect={() => setDeleteTarget(user)}>Delete</DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -508,70 +508,6 @@ export function AdminPanel() {
                   </div>
                 </CardContent>
               </Card>
-
-              {/* Edit Dialog */}
-              <Dialog open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Edit User</DialogTitle>
-                    <DialogDescription>Update user details.</DialogDescription>
-                  </DialogHeader>
-                  {editingUser && (
-                    <div className="grid gap-4 py-2">
-                      <div className="grid gap-2">
-                        <label className="text-sm font-medium">Name</label>
-                        <Input value={editingUser.name} onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })} />
-                      </div>
-                      <div className="grid gap-2">
-                        <label className="text-sm font-medium">Email (read-only)</label>
-                        <Input value={editingUser.email} disabled className="opacity-60" />
-                      </div>
-                    </div>
-                  )}
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
-                    <Button onClick={handleSaveUser}>Save</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              {/* Delete Dialog */}
-              <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete user?</AlertDialogTitle>
-                    <AlertDialogDescription>This will remove {deleteTarget?.name} ({deleteTarget?.email}) permanently.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteUser}>Delete</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              {/* Add User Dialog */}
-              <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Add New User</DialogTitle>
-                    <DialogDescription>Create a new user in the system.</DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-2">
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Full Name *</label>
-                      <Input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="John Doe" />
-                    </div>
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">Email *</label>
-                      <Input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="user@example.com" />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={handleAddUser}>Add User</Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             </TabsContent>
 
             {/* Reports Tab */}
@@ -624,6 +560,70 @@ export function AdminPanel() {
               </Card>
             </TabsContent>
           </Tabs>
+
+          {/* Edit Dialog — outside Tabs so it always renders */}
+          <Dialog open={Boolean(editingUser)} onOpenChange={(open) => !open && setEditingUser(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Edit User</DialogTitle>
+                <DialogDescription>Update user details.</DialogDescription>
+              </DialogHeader>
+              {editingUser && (
+                <div className="grid gap-4 py-2">
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Name</label>
+                    <Input value={editingUser.name} onChange={(e) => setEditingUser({ ...editingUser, name: e.target.value })} />
+                  </div>
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">Email (read-only)</label>
+                    <Input value={editingUser.email} disabled className="opacity-60" />
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
+                <Button onClick={handleSaveUser}>Save</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Delete Dialog */}
+          <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete user?</AlertDialogTitle>
+                <AlertDialogDescription>This will remove {deleteTarget?.name} ({deleteTarget?.email}) permanently.</AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteUser}>Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* Add User Dialog */}
+          <Dialog open={isAddUserDialogOpen} onOpenChange={setIsAddUserDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add New User</DialogTitle>
+                <DialogDescription>Create a new user in the system.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Full Name *</label>
+                  <Input value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} placeholder="John Doe" />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">Email *</label>
+                  <Input type="email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} placeholder="user@example.com" />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsAddUserDialogOpen(false)}>Cancel</Button>
+                <Button onClick={handleAddUser}>Add User</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
     </div>
