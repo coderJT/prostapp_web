@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -24,6 +24,14 @@ import {
 import { savePredictionHistoryEntry } from '../historyStore';
 import { buildApiUrl } from '../lib/api';
 import { getPreferredLanguage } from '../lib/language';
+import {
+  clearPredictionTask,
+  getPredictionTaskSnapshot,
+  rejectPredictionTask,
+  resolvePredictionTask,
+  startPredictionTask,
+  subscribePredictionTask,
+} from '../predictionTaskStore';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
 
 const escapePdfText = (value: string) =>
@@ -176,6 +184,11 @@ export function RiskAssessment() {
     lifestyle: '',
   });
   const [ftirSpectrumData, setFtirSpectrumData] = useState<{wavenumber: number; absorbance: number}[]>([]);
+  const predictionTask = useSyncExternalStore(
+    subscribePredictionTask,
+    getPredictionTaskSnapshot,
+    getPredictionTaskSnapshot,
+  );
 
   const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
@@ -203,6 +216,35 @@ export function RiskAssessment() {
   const ftirPredictButtonClass =
     'h-12 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/45 dark:text-emerald-100 dark:hover:bg-emerald-900/55';
 
+  useEffect(() => {
+    if (predictionTask.status === 'running') {
+      setLoading(true);
+      setResult(null);
+
+      if (predictionTask.kind === 'csv-invasive' || predictionTask.kind === 'csv-ftir') {
+        setAssessmentMode('csv');
+        setCsvType(predictionTask.kind === 'csv-ftir' ? 'ftir' : 'invasive');
+      }
+      return;
+    }
+
+    setLoading(false);
+
+    if (predictionTask.status === 'success' && predictionTask.result) {
+      setResult(predictionTask.result);
+      if (predictionTask.result.csvType === 'ftir' && Array.isArray(predictionTask.result.ftirSpectrumData)) {
+        setFtirSpectrumData(predictionTask.result.ftirSpectrumData);
+      }
+      return;
+    }
+
+    if (predictionTask.status === 'error' && predictionTask.kind) {
+      if (predictionTask.kind === 'csv-invasive' || predictionTask.kind === 'csv-ftir') {
+        setAssessmentMode('csv');
+      }
+    }
+  }, [predictionTask]);
+
   const handleChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
   };
@@ -221,6 +263,7 @@ export function RiskAssessment() {
 
   const calculateRisk = async () => {
     setLoading(true);
+    let taskId: string | null = null;
     try {
       // Map form data to the invasive model's expected CSV columns
       const age = parseFloat(formData.age) || 50;
@@ -272,6 +315,11 @@ export function RiskAssessment() {
         throw new Error('Prediction backend unavailable.');
       }
 
+      taskId = startPredictionTask({
+        kind: 'manual-invasive',
+        csvFileName: 'Manual entry (PSA model)',
+      });
+
       const [predictResponse, shapResponse] = await Promise.all([
         fetch(predictEndpoint, { method: 'POST', body: formDataToSend }),
         shapEndpoint ? fetch(shapEndpoint, { method: 'POST', body: formDataToSend }).catch(() => null) : Promise.resolve(null),
@@ -316,9 +364,13 @@ export function RiskAssessment() {
       };
 
       setResult(newResult);
+      resolvePredictionTask(taskId, newResult);
       saveAssessmentResult(newResult);
       toast.success('PSA model prediction completed!');
     } catch (error) {
+      if (taskId) {
+        rejectPredictionTask(taskId, error);
+      }
       toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
@@ -445,6 +497,7 @@ export function RiskAssessment() {
 
     setCsvType(type);
     setLoading(true);
+    let taskId: string | null = null;
     try {
       const validation = await validateCsvByType(csvFile, type);
       if (!validation.valid) {
@@ -508,6 +561,11 @@ export function RiskAssessment() {
         throw new Error('Prediction backend unavailable. Set VITE_API_BASE_URL for deployed environments.');
       }
 
+      taskId = startPredictionTask({
+        kind: type === 'ftir' ? 'csv-ftir' : 'csv-invasive',
+        csvFileName: csvFile.name,
+      });
+
       // Fetch LIME/Predict and SHAP streams in parallel
       const [predictResponse, shapResponse] = await Promise.all([
         fetch(predictEndpoint, { method: 'POST', body: formDataToSend }),
@@ -551,7 +609,7 @@ export function RiskAssessment() {
           riskColor = 'yellow';
         }
 
-        setResult({
+        const newResult = {
           score: riskScore,
           level: riskLevel,
           color: riskColor,
@@ -560,9 +618,17 @@ export function RiskAssessment() {
           predictionValue: predictionProbability,
           predictionClass,
           csvType: type,
+          csvFileName: csvFile.name,
           limeSummary: data.lime_summary || null,
           shapSummary: shapData?.shap_summary || data.shap_summary || null,
-        });
+          topLimeFeatures: data?.lime?.top_features || [],
+          topShapFeatures: shapData?.global_importance || data?.shap?.global_importance || [],
+          featureNotes: data?.lime_feature_notes || [],
+          ftirSpectrumData: type === 'ftir' ? ftirSpectrumData : [],
+        };
+
+        setResult(newResult);
+        resolvePredictionTask(taskId, newResult);
 
         localStorage.setItem('latestModelInsight', JSON.stringify({
           timestamp: new Date().toISOString(),
@@ -579,27 +645,16 @@ export function RiskAssessment() {
         }));
 
         // Save to localStorage for Results page
-        saveAssessmentResult({
-          score: riskScore,
-          level: riskLevel,
-          color: riskColor,
-          csvBased: true,
-          csvType: type,
-          predictionValue: predictionProbability,
-          predictionClass,
-          csvFileName: csvFile.name,
-          limeSummary: data.lime_summary || null,
-          shapSummary: shapData?.shap_summary || data.shap_summary || null,
-          topLimeFeatures: data?.lime?.top_features || [],
-          topShapFeatures: shapData?.global_importance || data?.shap?.global_importance || [],
-          featureNotes: data?.lime_feature_notes || [],
-        });
+        saveAssessmentResult(newResult);
 
         toast.success('File-upload prediction completed successfully!');
       } else {
         throw new Error(data.error || 'Invalid response from server');
       }
     } catch (error) {
+      if (taskId) {
+        rejectPredictionTask(taskId, error);
+      }
       toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
@@ -652,6 +707,82 @@ export function RiskAssessment() {
 
     toast.success('Report downloaded successfully!');
   };
+
+  if (predictionTask.status === 'running') {
+    const runningLabel = predictionTask.kind === 'csv-ftir'
+      ? 'FTIR / non-invasive prediction'
+      : predictionTask.kind === 'csv-invasive'
+        ? 'PSA / invasive file prediction'
+        : 'PSA / manual-entry prediction';
+
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className={introPanelClass}>
+          <div className="mb-2 flex items-center gap-3 text-sm font-medium text-sky-700 dark:text-sky-300">
+            <Loader className="h-5 w-5 animate-spin" />
+            Prediction running
+          </div>
+          <h1 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">Your prediction is still running</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
+            You can keep using the app. When you return to this page, this panel will stay connected to the active prediction and will switch to the result once it finishes.
+          </p>
+        </div>
+
+        <Card className={cardClass}>
+          <CardHeader className={cardHeaderClass}>
+            <CardTitle className="flex items-center gap-3 text-slate-950 dark:text-white">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-700 dark:bg-sky-950/70 dark:text-sky-300">
+                <Loader className="h-6 w-6 animate-spin" />
+              </span>
+              {runningLabel}
+            </CardTitle>
+            <CardDescription className="text-slate-600 dark:text-slate-400">
+              Started {predictionTask.startedAt ? new Date(predictionTask.startedAt).toLocaleTimeString() : 'recently'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-3xl border border-sky-100 bg-sky-50/80 p-5 dark:border-sky-900/60 dark:bg-sky-950/35">
+              <div className="mb-3 flex items-center justify-between gap-3 text-sm font-medium text-sky-900 dark:text-sky-100">
+                <span>Model request in progress</span>
+                {predictionTask.csvFileName && <span className="text-xs text-sky-700 dark:text-sky-300">{predictionTask.csvFileName}</span>}
+              </div>
+              <Progress value={68} className="h-2 rounded-full" />
+              <p className="mt-3 text-sm leading-6 text-sky-800 dark:text-sky-200">
+                The backend is processing the prediction and explanation outputs. This page will update automatically when the request completes.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (predictionTask.status === 'error' && predictionTask.error && !result) {
+    return (
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className={introPanelClass}>
+          <div className="mb-2 flex items-center gap-3 text-sm font-medium text-rose-700 dark:text-rose-300">
+            <AlertCircle className="h-5 w-5" />
+            Prediction failed
+          </div>
+          <h1 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">The prediction could not be completed</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">{predictionTask.error}</p>
+        </div>
+
+        <Button
+          onClick={() => {
+            clearPredictionTask();
+            setResult(null);
+            setLoading(false);
+            setAssessmentMode('form');
+          }}
+          className={primaryButtonClass}
+        >
+          Start a new assessment
+        </Button>
+      </div>
+    );
+  }
 
   if (result) {
     return (
@@ -792,6 +923,7 @@ export function RiskAssessment() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button onClick={() => {
+                clearPredictionTask();
                 setResult(null);
                 setStep(1);
                 setAssessmentMode('form');
