@@ -28,6 +28,32 @@ ProstAPP is a prostate cancer risk-assessment web app with a React frontend, an 
 - Education: curated prostate cancer resources from NCI, CDC, ACS, Mayo Clinic, PCF, and Urology Care Foundation, with live page-title fetching when available.
 - UI updates: site-wide English/Bahasa Malaysia/Chinese translation support, dark-mode rendering fixes, and mobile navigation overflow fixes.
 
+## Screenshots
+
+### Landing Page
+
+![ProstAPP landing page](docs/images/readme/landing.png)
+
+### Prediction Workflow
+
+![Prediction upload page](docs/images/readme/prediction-page.png)
+
+![Prediction result summary](docs/images/readme/prediction-result.png)
+
+![FTIR spectrum result](docs/images/readme/ftir-spectrum-result.png)
+
+### Results And Reports
+
+![Results history page](docs/images/readme/history-page.png)
+
+![Report explanation page](docs/images/readme/report-page.png)
+
+### Admin Dashboard
+
+![Admin dashboard overview](docs/images/readme/admin-dashboard-overview.png)
+
+![Admin dashboard insights](docs/images/readme/admin-dashboard-insights.png)
+
 ## Repository Layout
 
 ```text
