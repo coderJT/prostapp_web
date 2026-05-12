@@ -65,6 +65,144 @@ INVASIVE_COLUMNS = [
     "race_M",
 ]
 
+COMORBIDITY_FEATURES = {
+    "hypertension": "hypertension history",
+    "heart_disease": "heart disease history",
+    "cerebro_vascular_disease": "cerebrovascular disease history",
+    "hyperlipidemia": "hyperlipidemia history",
+    "diabetes_melitus": "diabetes mellitus history",
+    "renal_disease": "renal disease history",
+    "other_cancer": "other cancer history",
+    "other_disease": "other disease history",
+}
+
+
+def _format_number(value, decimals: int = 3) -> str:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return "N/A"
+
+    if numeric.is_integer():
+        return str(int(numeric))
+    return f"{numeric:.{decimals}f}".rstrip("0").rstrip(".")
+
+
+def _format_yes_no(value) -> str:
+    try:
+        return "Yes" if float(value) >= 0.5 else "No"
+    except (TypeError, ValueError):
+        return "N/A"
+
+
+def _feature_direction(weight: Optional[float]) -> str:
+    if weight is None:
+        return ""
+    if weight > 0:
+        return " In this explanation, it pushed the model toward the higher-risk class."
+    if weight < 0:
+        return " In this explanation, it pushed the model toward the lower-risk class."
+    return ""
+
+
+def _clinical_feature_note(feature: str, value, weight: Optional[float] = None) -> Dict:
+    direction = _feature_direction(weight)
+    binary_features = {
+        "family_history_prostate_cancer": (
+            "Family history of prostate cancer",
+            None,
+            "Family history can raise baseline prostate cancer risk, especially for first-degree relatives or early-onset disease.",
+        ),
+        "race_C": (
+            "Race indicator: Chinese",
+            "Chinese",
+            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+        ),
+        "race_I": (
+            "Race indicator: Indian",
+            "Indian",
+            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+        ),
+        "race_M": (
+            "Race indicator: Malay",
+            "Malay",
+            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+        ),
+    }
+
+    if feature == "age":
+        return {
+            "display_feature": "Age",
+            "display_value": f"{_format_number(value, 0)} years",
+            "meaning": f"Age is a background risk factor and should be interpreted with PSA trend, symptoms, exam findings, and overall health.{direction}",
+        }
+    if feature == "psa_(ng/ml)":
+        return {
+            "display_feature": "PSA level",
+            "display_value": f"{_format_number(value, 2)} ng/mL",
+            "meaning": f"PSA is a prostate blood marker; elevated values can occur with cancer, benign enlargement, infection, inflammation, or recent procedures.{direction}",
+        }
+    if feature == "body_weight_(kg)":
+        return {
+            "display_feature": "Body weight",
+            "display_value": f"{_format_number(value, 1)} kg",
+            "meaning": f"Body size is a model context variable here, not a standalone prostate cancer decision factor.{direction}",
+        }
+    if feature == "height_(cm)":
+        return {
+            "display_feature": "Height",
+            "display_value": f"{_format_number(value, 1)} cm",
+            "meaning": f"Body size is a model context variable here, not a standalone prostate cancer decision factor.{direction}",
+        }
+    if feature == "educational_background":
+        labels = {
+            0: "No formal / primary",
+            1: "Secondary",
+            2: "Tertiary",
+            3: "Postgraduate",
+        }
+        try:
+            display_value = labels.get(round(float(value)), f"Code {_format_number(value, 0)}")
+        except (TypeError, ValueError):
+            display_value = "N/A"
+        return {
+            "display_feature": "Education background",
+            "display_value": display_value,
+            "meaning": f"Education is a contextual dataset variable and should not be treated as a direct biological risk factor.{direction}",
+        }
+    if feature == "region_Rural":
+        return {
+            "display_feature": "Region",
+            "display_value": "Rural" if float(value) >= 0.5 else "Urban / not rural",
+            "meaning": f"Region is a care-context and access variable in the dataset; it is not a biological explanation.{direction}",
+        }
+    if feature in binary_features:
+        display_feature, race_label, meaning = binary_features[feature]
+        display_value = f"{race_label}: {'yes' if float(value) >= 0.5 else 'no'}" if race_label else _format_yes_no(value)
+        return {
+            "display_feature": display_feature,
+            "display_value": display_value,
+            "meaning": f"{meaning}{direction}",
+        }
+    if feature in COMORBIDITY_FEATURES:
+        label = COMORBIDITY_FEATURES[feature].replace("_", " ").title()
+        return {
+            "display_feature": label,
+            "display_value": _format_yes_no(value),
+            "meaning": f"This records {COMORBIDITY_FEATURES[feature]}. It may reflect background health status or care pathway context, not a direct causal finding.{direction}",
+        }
+    if feature.startswith("Column_"):
+        return {
+            "display_feature": f"FTIR PCA component {feature.replace('Column_', '')}",
+            "display_value": f"PCA score {_format_number(value, 4)}",
+            "meaning": f"This is a PCA component derived from the FTIR spectrum. It reflects compressed spectral patterns, not a directly named clinical measurement.{direction}",
+        }
+
+    return {
+        "display_value": _format_number(value, 4),
+        "meaning": f"Patient-specific LIME contribution.{direction}",
+    }
+
 # Sector-wise PCA definitions for FTIR wavenumber data
 # Each sector slices wavenumber columns from high (inclusive) to low (exclusive)
 SECTOR_RANGES = OrderedDict([
@@ -476,6 +614,15 @@ def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb", lan
         "prediction": predicted_class,
         "probability": probability,
         "lime": {"top_features": lime_features},
+        "lime_feature_notes": [
+            {
+                "feature": item["feature"],
+                "weight": item["weight"],
+                "value": item["feature_value"],
+                **_clinical_feature_note(item["feature"], item["feature_value"], item["weight"]),
+            }
+            for item in lime_features[:8]
+        ],
         "latency_ms": round(latency_ms, 1),
     }
 

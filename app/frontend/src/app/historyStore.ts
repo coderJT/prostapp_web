@@ -7,8 +7,12 @@ export type PredictionSource = 'form' | 'ml-invasive' | 'ml-ftir';
 
 export type FeatureNote = {
   feature?: string;
+  displayFeature?: string | null;
+  display_feature?: string | null;
   value?: number | string | null;
   feature_value?: number | string | null;
+  displayValue?: string | null;
+  display_value?: string | null;
   weight?: number | string | null;
   mean_abs_shap?: number | string | null;
   mean_shap?: number | string | null;

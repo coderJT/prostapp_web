@@ -32,6 +32,12 @@ import {
   type FeatureNote,
   type PredictionHistoryEntry,
 } from '../historyStore';
+import {
+  formatFeatureName,
+  formatFeatureNoteValue,
+  formatModelNumber,
+  getFeatureNoteMeaning,
+} from '../lib/featureNotes';
 
 type FeatureChartRow = {
   name: string;
@@ -60,16 +66,7 @@ function getNumericValue(value: unknown) {
 }
 
 function formatListValue(value: unknown) {
-  const numeric = getNumericValue(value);
-  return numeric !== null ? numeric.toFixed(4) : 'N/A';
-}
-
-function formatFeatureName(value: unknown) {
-  const name = typeof value === 'string' && value.trim() ? value.trim() : 'Unknown feature';
-
-  return name
-    .replaceAll('_', ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return formatModelNumber(value);
 }
 
 function getRiskTone(level: string) {
@@ -149,27 +146,6 @@ function buildChartData(features: unknown[] = []) {
       magnitude: Math.abs(score),
       direction: score >= 0 ? 'raises' : 'lowers',
     })) satisfies FeatureChartRow[];
-}
-
-function getFeatureNoteValue(note: FeatureNote) {
-  return note.value ?? note.feature_value ?? note.weight ?? note.mean_abs_shap ?? note.mean_shap;
-}
-
-function getFeatureNoteMeaning(note: FeatureNote) {
-  if (note.mean_abs_shap !== undefined || note.mean_shap !== undefined) {
-    return note.meaning || 'Model-wide feature importance from SHAP.';
-  }
-
-  if (note.weight !== undefined) {
-    const weight = getNumericValue(note.weight);
-    if (weight !== null) {
-      return note.meaning || (weight >= 0
-        ? 'Pushes this prediction toward the higher-risk class in the local explanation.'
-        : 'Pushes this prediction toward the lower-risk class in the local explanation.');
-    }
-  }
-
-  return note.meaning || 'Not specified';
 }
 
 function renderFormattedSummary(text: string) {
@@ -686,8 +662,8 @@ export function HistoryReport() {
                       <tbody>
                         {selectedEntry.featureNotes.slice(0, 15).map((note, idx) => (
                           <tr key={`${note.feature}-${idx}`} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/60">
-                            <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{formatFeatureName(note.feature)}</td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{formatListValue(getFeatureNoteValue(note))}</td>
+                            <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{formatFeatureName(note)}</td>
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{formatFeatureNoteValue(note)}</td>
                             <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{getFeatureNoteMeaning(note)}</td>
                           </tr>
                         ))}
