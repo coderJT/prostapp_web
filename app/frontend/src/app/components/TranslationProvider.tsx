@@ -42,6 +42,23 @@ function translateText(value: string, language: LanguageCode) {
     return value.replace(trimmed, translated);
   }
 
+  const stepMatch = trimmed.match(/^Step\s+(\d+)\s+of\s+(\d+):\s+(.+)$/);
+  if (stepMatch) {
+    const stepTitle = appTranslations[stepMatch[3]]?.[language] || stepMatch[3];
+    const translated = language === 'ms'
+      ? `Langkah ${stepMatch[1]} daripada ${stepMatch[2]}: ${stepTitle}`
+      : `步骤 ${stepMatch[1]} / ${stepMatch[2]}：${stepTitle}`;
+    return value.replace(trimmed, translated);
+  }
+
+  const percentCompleteMatch = trimmed.match(/^(\d+)%\s+complete$/);
+  if (percentCompleteMatch) {
+    const translated = language === 'ms'
+      ? `${percentCompleteMatch[1]}% selesai`
+      : `${percentCompleteMatch[1]}% 完成`;
+    return value.replace(trimmed, translated);
+  }
+
   const probabilityMatch = trimmed.match(/^Model probability:\s*([\d.]+%)$/);
   if (probabilityMatch) {
     const translated = language === 'ms'
@@ -55,6 +72,22 @@ function translateText(value: string, language: LanguageCode) {
     const translated = language === 'ms'
       ? `Ramalan muat naik fail: ${fileUploadPredictionMatch[1]}`
       : `文件上传预测：${fileUploadPredictionMatch[1]}`;
+    return value.replace(trimmed, translated);
+  }
+
+  const coreValuesMatch = trimmed.match(/^Age\s+([^,]+),\s+PSA\s+([^,]+)\s+ng\/mL,\s+weight\s+([^,]+)\s+kg,\s+height\s+([^,]+)\s+cm\.$/);
+  if (coreValuesMatch) {
+    const translated = language === 'ms'
+      ? `Umur ${coreValuesMatch[1]}, PSA ${coreValuesMatch[2]} ng/mL, berat ${coreValuesMatch[3]} kg, tinggi ${coreValuesMatch[4]} cm.`
+      : `年龄 ${coreValuesMatch[1]}，PSA ${coreValuesMatch[2]} ng/mL，体重 ${coreValuesMatch[3]} kg，身高 ${coreValuesMatch[4]} cm。`;
+    return value.replace(trimmed, translated);
+  }
+
+  const datasetCodingMatch = trimmed.match(/^Race\s+([^,]+),\s+region\s+([^,]+),\s+education code\s+(.+)\.$/);
+  if (datasetCodingMatch) {
+    const translated = language === 'ms'
+      ? `Kaum ${datasetCodingMatch[1]}, wilayah ${datasetCodingMatch[2]}, kod pendidikan ${datasetCodingMatch[3]}.`
+      : `族裔 ${datasetCodingMatch[1]}，地区 ${datasetCodingMatch[2]}，教育代码 ${datasetCodingMatch[3]}。`;
     return value.replace(trimmed, translated);
   }
 
