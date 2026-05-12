@@ -47,12 +47,50 @@ alter table public.users
     }'::jsonb,
     add column if not exists updated_at timestamptz not null default now();
 
+create or replace function public.set_users_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+    new.updated_at := now();
+    return new;
+end;
+$$;
+
 drop trigger if exists users_generate_id on public.users;
 
 create trigger users_generate_id
 before insert on public.users
 for each row
 execute function public.generate_user_id();
+
+drop trigger if exists users_set_updated_at on public.users;
+
+create trigger users_set_updated_at
+before update on public.users
+for each row
+execute function public.set_users_updated_at();
+
+comment on column public.users.avatar_url is
+'Base64 or URL avatar image shown in the profile header.';
+
+comment on column public.users.date_of_birth is
+'Patient date of birth saved from Profile Settings.';
+
+comment on column public.users.address is
+'Street address saved from Profile Settings.';
+
+comment on column public.users.city is
+'City saved from Profile Settings.';
+
+comment on column public.users.state is
+'State saved from Profile Settings.';
+
+comment on column public.users.zip_code is
+'Postal or ZIP code saved from Profile Settings.';
+
+comment on column public.users.notification_preferences is
+'JSON object of Profile Settings notification toggles.';
 
 insert into public.users (
     user_first_name,
