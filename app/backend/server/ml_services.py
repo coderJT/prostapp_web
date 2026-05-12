@@ -1,4 +1,6 @@
 import os
+import threading
+from contextlib import contextmanager
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
@@ -15,11 +17,29 @@ MODALITY_ALIASES = {
     "noninvasive": "non-invasive",
 }
 SUPPORTED_LANGUAGES = {"en", "ms", "zh"}
+_prediction_locks = {}
+_prediction_locks_guard = threading.Lock()
 
 
 def _request_language() -> str:
     language = request.form.get("language", request.args.get("language", "en"))
     return language if language in SUPPORTED_LANGUAGES else "en"
+
+
+def _request_queue_key() -> str:
+    user_email = request.form.get("userEmail") or request.headers.get("x-user-email") or "anonymous"
+    return user_email.strip().lower() or "anonymous"
+
+
+@contextmanager
+def _queued_prediction(key: str):
+    with _prediction_locks_guard:
+        lock = _prediction_locks.setdefault(key, threading.Lock())
+    lock.acquire()
+    try:
+        yield
+    finally:
+        lock.release()
 
 # ---------------------------------------------------------------------------
 # MLflow helpers (optional — degrade gracefully)
@@ -70,7 +90,8 @@ def predict(modality: str):
     try:
         csv_text = file.stream.read().decode("utf-8")
         model_type = request.form.get("model_type", request.args.get("model_type", "xgb"))
-        result = predict_with_lime(modality, csv_text, model_type, _request_language())
+        with _queued_prediction(_request_queue_key()):
+            result = predict_with_lime(modality, csv_text, model_type, _request_language())
         return jsonify(result)
     except Exception as exc:  # pylint: disable=broad-except
         return jsonify({"success": False, "error": str(exc)}), 500
@@ -89,7 +110,8 @@ def shap_endpoint(modality: str):
     try:
         csv_text = file.stream.read().decode("utf-8")
         model_type = request.form.get("model_type", request.args.get("model_type", "xgb"))
-        result = shap_global(modality, csv_text, model_type, _request_language())
+        with _queued_prediction(_request_queue_key()):
+            result = shap_global(modality, csv_text, model_type, _request_language())
         return jsonify(result)
     except Exception as exc:  # pylint: disable=broad-except
         return jsonify({"success": False, "error": str(exc)}), 500
