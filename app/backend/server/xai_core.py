@@ -176,14 +176,19 @@ def _load_from_mlflow(modality: str):
 
 @lru_cache(maxsize=4)
 def load_model(modality: str, model_type: str = "xgb"):
-    # Prefer MLflow registry; fall back to local joblib
-    model = _load_from_mlflow(modality)
-    if model is not None:
-        return model
-
     if modality == "invasive":
+        # Prefer MLflow registry; fall back to local joblib.
+        model = _load_from_mlflow(modality)
+        if model is not None:
+            return model
         return joblib.load(INVASIVE_MODEL_PATH)
     if modality == "non-invasive":
+        # The registry currently stores the XGBoost FTIR champion only.
+        # Keep explicit LightGBM selections tied to the local LightGBM artifact.
+        if model_type != "lgbm":
+            model = _load_from_mlflow(modality)
+            if model is not None:
+                return model
         path = FTIR_LGBM_MODEL_PATH if model_type == "lgbm" else FTIR_XGB_MODEL_PATH
         return joblib.load(path)
     raise ValueError(f"Unsupported modality '{modality}'. Use 'invasive' or 'non-invasive'.")
