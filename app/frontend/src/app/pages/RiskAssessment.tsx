@@ -1087,10 +1087,7 @@ export function RiskAssessment() {
               <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5 dark:text-amber-300" />
               <div className="text-sm text-amber-800 dark:text-amber-100">
                 <p className="font-semibold mb-1">Important Notice</p>
-                <p>
-                  This assessment is for informational purposes only and does not replace professional 
-                  medical advice. Please consult with a healthcare provider for proper diagnosis and treatment.
-                </p>
+                <p>This assessment is for informational purposes only and does not replace professional medical advice. Please consult with a healthcare provider for proper diagnosis and treatment.</p>
               </div>
             </div>
 

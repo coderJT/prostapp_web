@@ -34,7 +34,7 @@ function translateText(value: string, language: LanguageCode) {
     return value.replace(trimmed, translated);
   }
 
-  const riskScoreMatch = trimmed.match(/^Risk score:\s*(\d+)\/100$/);
+  const riskScoreMatch = trimmed.match(/^Risk score:\s*(\d+)\s*\/\s*100$/);
   if (riskScoreMatch) {
     const translated = language === 'ms'
       ? `Skor risiko: ${riskScoreMatch[1]}/100`
@@ -47,6 +47,14 @@ function translateText(value: string, language: LanguageCode) {
     const translated = language === 'ms'
       ? `Kebarangkalian model: ${probabilityMatch[1]}`
       : `模型概率：${probabilityMatch[1]}`;
+    return value.replace(trimmed, translated);
+  }
+
+  const fileUploadPredictionMatch = trimmed.match(/^File-upload prediction:\s*([\d.]+%)$/);
+  if (fileUploadPredictionMatch) {
+    const translated = language === 'ms'
+      ? `Ramalan muat naik fail: ${fileUploadPredictionMatch[1]}`
+      : `文件上传预测：${fileUploadPredictionMatch[1]}`;
     return value.replace(trimmed, translated);
   }
 
