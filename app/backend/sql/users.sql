@@ -31,6 +31,22 @@ create table if not exists public.users (
     is_clinician boolean not null default false
 );
 
+alter table public.users
+    add column if not exists avatar_url text,
+    add column if not exists date_of_birth date,
+    add column if not exists address text,
+    add column if not exists city text,
+    add column if not exists state text,
+    add column if not exists zip_code text,
+    add column if not exists notification_preferences jsonb not null default '{
+        "emailNotifications": true,
+        "smsNotifications": false,
+        "appointmentReminders": true,
+        "assessmentReminders": true,
+        "educationalContent": true
+    }'::jsonb,
+    add column if not exists updated_at timestamptz not null default now();
+
 drop trigger if exists users_generate_id on public.users;
 
 create trigger users_generate_id

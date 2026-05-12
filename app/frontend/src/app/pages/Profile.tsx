@@ -12,29 +12,45 @@ import { toast } from 'sonner';
 import { clearUserSession, getStoredUser, saveUserSession } from '../auth/session';
 import { supabase } from '../lib/supabase';
 
+const defaultProfileData = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  dateOfBirth: '',
+  address: '',
+  city: '',
+  state: '',
+  zipCode: '',
+};
+
+const defaultNotifications = {
+  emailNotifications: true,
+  smsNotifications: false,
+  appointmentReminders: true,
+  assessmentReminders: true,
+  educationalContent: true,
+};
+
+function buildUserInsertPayload(user: any, profileData: typeof defaultProfileData, notificationPreferences = defaultNotifications) {
+  const [fallbackFirstName = '', ...fallbackLastNameParts] = String(user?.name || '').split(' ');
+  return {
+    user_email: user?.email,
+    user_first_name: profileData.firstName.trim() || fallbackFirstName || 'Unknown',
+    user_last_name: profileData.lastName.trim() || fallbackLastNameParts.join(' ') || 'Unknown',
+    user_hashed_password: 'managed_by_supabase_auth',
+    user_phone_number: profileData.phone.trim() || user?.phone || '0000000000',
+    is_clinician: user?.role === 'admin',
+    notification_preferences: notificationPreferences,
+  };
+}
+
 export function Profile() {
   const [user, setUser] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [profileData, setProfileData] = useState({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    dateOfBirth: '',
-    address: '',
-    city: '',
-    state: '',
-    zipCode: '',
-  });
-
-  const [notifications, setNotifications] = useState({
-    emailNotifications: true,
-    smsNotifications: false,
-    appointmentReminders: true,
-    assessmentReminders: true,
-    educationalContent: true,
-  });
+  const [profileData, setProfileData] = useState(defaultProfileData);
+  const [notifications, setNotifications] = useState(defaultNotifications);
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -50,38 +66,131 @@ export function Profile() {
       // Initialize profile data
       const nameParts = parsedUser.name?.split(' ') || ['', ''];
       setProfileData({
-        ...profileData,
+        ...defaultProfileData,
         firstName: nameParts[0] || '',
-        lastName: nameParts[1] || '',
+        lastName: nameParts.slice(1).join(' ') || '',
         email: parsedUser.email || '',
+        phone: parsedUser.phone || '',
       });
 
-      // Fetch user's avatar from public.users table
+      try {
+        const savedNotifications = localStorage.getItem('notificationPreferences');
+        if (savedNotifications) {
+          setNotifications({ ...defaultNotifications, ...JSON.parse(savedNotifications) });
+        }
+      } catch {
+        // Ignore malformed local preferences; Supabase values below are authoritative.
+      }
+
+      // Fetch saved profile settings from public.users.
       if (parsedUser.email) {
         supabase
           .from('users')
-          .select('avatar_url')
+          .select('avatar_url,user_first_name,user_last_name,user_phone_number,date_of_birth,address,city,state,zip_code,notification_preferences')
           .eq('user_email', parsedUser.email)
           .single()
           .then(({ data, error }) => {
-            if (!error && data?.avatar_url) {
+            if (error || !data) {
+              return;
+            }
+
+            if (data.avatar_url) {
               setAvatarUrl(data.avatar_url);
+            }
+
+            setProfileData((current) => ({
+              ...current,
+              firstName: data.user_first_name || current.firstName,
+              lastName: data.user_last_name || current.lastName,
+              phone: data.user_phone_number || current.phone,
+              dateOfBirth: data.date_of_birth || '',
+              address: data.address || '',
+              city: data.city || '',
+              state: data.state || '',
+              zipCode: data.zip_code || '',
+            }));
+
+            if (data.notification_preferences && typeof data.notification_preferences === 'object') {
+              setNotifications({
+                ...defaultNotifications,
+                ...data.notification_preferences,
+              });
             }
           });
       }
     }
   }, []);
 
-  const handleProfileUpdate = () => {
-    // Update local storage
+  const handleProfileUpdate = async () => {
+    if (!user?.email) {
+      toast.error('User session not found.');
+      return;
+    }
+
     const updatedUser = {
       ...user,
-      name: `${profileData.firstName} ${profileData.lastName}`,
+      name: `${profileData.firstName} ${profileData.lastName}`.trim(),
       email: user?.email,
+      phone: profileData.phone,
     };
-    const savedUser = saveUserSession(updatedUser);
-    setUser(savedUser);
-    toast.success('Profile updated successfully!');
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          user_first_name: profileData.firstName.trim(),
+          user_last_name: profileData.lastName.trim(),
+          user_phone_number: profileData.phone.trim() || '0000000000',
+          date_of_birth: profileData.dateOfBirth || null,
+          address: profileData.address.trim() || null,
+          city: profileData.city.trim() || null,
+          state: profileData.state.trim() || null,
+          zip_code: profileData.zipCode.trim() || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_email', user.email)
+        .select('user_first_name,user_last_name,user_phone_number,date_of_birth,address,city,state,zip_code')
+        .maybeSingle();
+
+      if (error) throw error;
+      let savedData = data;
+
+      if (!savedData) {
+        const { data: insertedData, error: insertError } = await supabase
+          .from('users')
+          .insert({
+            ...buildUserInsertPayload(user, profileData, notifications),
+            date_of_birth: profileData.dateOfBirth || null,
+            address: profileData.address.trim() || null,
+            city: profileData.city.trim() || null,
+            state: profileData.state.trim() || null,
+            zip_code: profileData.zipCode.trim() || null,
+          })
+          .select('user_first_name,user_last_name,user_phone_number,date_of_birth,address,city,state,zip_code')
+          .single();
+
+        if (insertError) throw insertError;
+        savedData = insertedData;
+      }
+
+      setProfileData((current) => ({
+        ...current,
+        firstName: savedData.user_first_name || '',
+        lastName: savedData.user_last_name || '',
+        phone: savedData.user_phone_number || '',
+        dateOfBirth: savedData.date_of_birth || '',
+        address: savedData.address || '',
+        city: savedData.city || '',
+        state: savedData.state || '',
+        zipCode: savedData.zip_code || '',
+      }));
+
+      const savedUser = saveUserSession(updatedUser);
+      setUser(savedUser);
+      toast.success('Profile updated successfully!');
+    } catch (error: any) {
+      toast.error(`Error updating profile: ${error.message}`);
+    }
   };
 
   const handlePasswordChange = () => {
@@ -109,10 +218,47 @@ export function Profile() {
     toast.success('Password changed successfully!');
   };
 
-  const handleNotificationUpdate = () => {
-    // Save notification preferences to localStorage
-    localStorage.setItem('notificationPreferences', JSON.stringify(notifications));
-    toast.success('Notification preferences updated!');
+  const handleNotificationUpdate = async () => {
+    if (!user?.email) {
+      toast.error('User session not found.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          notification_preferences: notifications,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_email', user.email)
+        .select('notification_preferences')
+        .maybeSingle();
+
+      if (error) throw error;
+      let savedData = data;
+
+      if (!savedData) {
+        const { data: insertedData, error: insertError } = await supabase
+          .from('users')
+          .insert(buildUserInsertPayload(user, profileData, notifications))
+          .select('notification_preferences')
+          .single();
+
+        if (insertError) throw insertError;
+        savedData = insertedData;
+      }
+
+      const savedPreferences = {
+        ...defaultNotifications,
+        ...(savedData.notification_preferences || {}),
+      };
+      setNotifications(savedPreferences);
+      localStorage.setItem('notificationPreferences', JSON.stringify(savedPreferences));
+      toast.success('Notification preferences updated!');
+    } catch (error: any) {
+      toast.error(`Error updating notifications: ${error.message}`);
+    }
   };
 
   const handleDownloadData = () => {
