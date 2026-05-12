@@ -1,3 +1,5 @@
+import { clearPredictionTask } from '../predictionTaskStore';
+
 export type UserRole = 'patient' | 'admin';
 
 export type ClinicalRole = 'doctor' | 'nurse' | 'clinician' | '';
@@ -14,6 +16,10 @@ export type AppUser = {
 };
 
 const USER_STORAGE_KEY = 'user';
+const SESSION_SCOPED_STORAGE_KEYS = [
+  'assessmentHistory',
+  'latestModelInsight',
+];
 
 function isBrowser() {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
@@ -92,6 +98,10 @@ export function saveUserSession(rawUser: unknown) {
   }
 
   try {
+    const existingUser = getStoredUser();
+    if (existingUser && existingUser.email.toLowerCase() !== user.email.toLowerCase()) {
+      clearSessionScopedState();
+    }
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
     return user;
   } catch {
@@ -106,9 +116,26 @@ export function clearUserSession() {
 
   try {
     localStorage.removeItem(USER_STORAGE_KEY);
+    clearSessionScopedState();
   } catch {
     // Browser storage can be blocked; logout should still continue gracefully.
   }
+}
+
+function clearSessionScopedState() {
+  if (!isBrowser()) {
+    clearPredictionTask();
+    return;
+  }
+
+  SESSION_SCOPED_STORAGE_KEYS.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Ignore storage failures; session clearing should be best-effort.
+    }
+  });
+  clearPredictionTask();
 }
 
 export function isAdminUser(user: AppUser | null) {

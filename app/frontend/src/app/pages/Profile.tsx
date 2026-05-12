@@ -9,7 +9,7 @@ import { Switch } from '../components/ui/switch';
 import { Separator } from '../components/ui/separator';
 import { User, Mail, Phone, Calendar, Bell, Shield, Key } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStoredUser, saveUserSession } from '../auth/session';
+import { clearUserSession, getStoredUser, saveUserSession } from '../auth/session';
 import { supabase } from '../lib/supabase';
 
 export function Profile() {
@@ -140,7 +140,7 @@ export function Profile() {
   const handleDeleteAccount = () => {
     if (window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
       // Clear all user data
-      localStorage.clear();
+      clearUserSession();
       toast.success('Account deletion initiated. Please contact support to complete the process.');
       // In a real app, this would call an API
     }
