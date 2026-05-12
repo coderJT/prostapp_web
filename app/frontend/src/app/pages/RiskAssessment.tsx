@@ -144,6 +144,58 @@ const toProbability = (value: unknown) => {
   return Math.min(Math.max(normalizedValue, 0), 1);
 };
 
+const riskBands = [
+  {
+    level: 'Low',
+    range: '0-29',
+    color: 'green',
+    description: 'Lower modeled probability; continue routine screening and review with clinical context.',
+  },
+  {
+    level: 'Moderate',
+    range: '30-59',
+    color: 'yellow',
+    description: 'Intermediate modeled probability; discuss follow-up timing and supporting clinical findings.',
+  },
+  {
+    level: 'High',
+    range: '60-100',
+    color: 'red',
+    description: 'Higher modeled probability; prioritize clinician review and possible further assessment.',
+  },
+] as const;
+
+const initialManualFormData = {
+  age: '',
+  psa: '',
+  bodyWeight: '',
+  height: '',
+  familyHistory: '',
+  education: '',
+  hypertension: '',
+  heartDisease: '',
+  cerebroVascularDisease: '',
+  hyperlipidemia: '',
+  diabetesMelitus: '',
+  renalDisease: '',
+  otherCancer: '',
+  otherDisease: '',
+  region: '',
+  race: '',
+};
+
+function getRiskCategory(riskScore: number) {
+  if (riskScore >= 60) {
+    return { riskLevel: 'High', riskColor: 'red' };
+  }
+
+  if (riskScore >= 30) {
+    return { riskLevel: 'Moderate', riskColor: 'yellow' };
+  }
+
+  return { riskLevel: 'Low', riskColor: 'green' };
+}
+
 export function RiskAssessment() {
   const navigate = useNavigate();
   const invasiveExpectedHeaders = [
@@ -175,14 +227,7 @@ export function RiskAssessment() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvType, setCsvType] = useState<'invasive' | 'ftir' | null>(null);
   const [ftirModelType, setFtirModelType] = useState<'xgb' | 'lgbm'>('xgb');
-  const [formData, setFormData] = useState({
-    age: '',
-    familyHistory: '',
-    psa: '',
-    symptoms: '',
-    ethnicity: '',
-    lifestyle: '',
-  });
+  const [formData, setFormData] = useState(() => ({ ...initialManualFormData }));
   const [ftirSpectrumData, setFtirSpectrumData] = useState<{wavenumber: number; absorbance: number}[]>([]);
   const predictionTask = useSyncExternalStore(
     subscribePredictionTask,
@@ -190,9 +235,9 @@ export function RiskAssessment() {
     getPredictionTaskSnapshot,
   );
 
-  const totalSteps = 3;
+  const totalSteps = 4;
   const progress = (step / totalSteps) * 100;
-  const stepTitles = ['Personal details', 'Medical history', 'Lifestyle'];
+  const stepTitles = ['Demographics', 'PSA and history', 'Comorbidities', 'Review'];
   const introPanelClass =
     'rounded-[2rem] border border-white/80 bg-white/85 p-6 shadow-xl shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/25';
   const cardClass =
@@ -249,44 +294,105 @@ export function RiskAssessment() {
     setFormData({ ...formData, [field]: value });
   };
 
-  const handleNext = () => {
-    if (step < totalSteps) {
-      setStep(step + 1);
-    }
-  };
-
   const handleBack = () => {
     if (step > 1) {
       setStep(step - 1);
     }
   };
 
+  const binaryValue = (value: string) => (value === 'yes' ? 1 : 0);
+
+  const validateManualStep = (stepToValidate: number) => {
+    const age = Number(formData.age);
+    const psa = Number(formData.psa);
+    const bodyWeight = Number(formData.bodyWeight);
+    const height = Number(formData.height);
+
+    if (stepToValidate === 1) {
+      if (!formData.age) return 'Please provide age.';
+      if (!Number.isFinite(age) || age < 18 || age > 100) return 'Age must be between 18 and 100.';
+      if (!formData.race) return 'Please provide race/ethnicity.';
+      if (!formData.region) return 'Please provide region.';
+    }
+
+    if (stepToValidate === 2) {
+      if (!formData.psa) return 'Please provide PSA level.';
+      if (!Number.isFinite(psa) || psa < 0 || psa > 200) return 'PSA level must be between 0 and 200 ng/mL.';
+      if (!formData.bodyWeight) return 'Please provide body weight.';
+      if (!Number.isFinite(bodyWeight) || bodyWeight < 30 || bodyWeight > 250) return 'Body weight must be between 30 and 250 kg.';
+      if (!formData.height) return 'Please provide height.';
+      if (!Number.isFinite(height) || height < 100 || height > 230) return 'Height must be between 100 and 230 cm.';
+      if (!formData.familyHistory) return 'Please provide family history.';
+      if (!formData.education) return 'Please provide education background.';
+    }
+
+    if (stepToValidate === 3) {
+      const requiredComorbidities: Array<[keyof typeof formData, string]> = [
+        ['hypertension', 'hypertension history'],
+        ['heartDisease', 'heart disease history'],
+        ['cerebroVascularDisease', 'cerebrovascular disease history'],
+        ['hyperlipidemia', 'hyperlipidemia history'],
+        ['diabetesMelitus', 'diabetes mellitus history'],
+        ['renalDisease', 'renal disease history'],
+        ['otherCancer', 'other cancer history'],
+        ['otherDisease', 'other disease history'],
+      ];
+      const missing = requiredComorbidities.find(([field]) => !formData[field]);
+      if (missing) return `Please provide ${missing[1]}.`;
+    }
+
+    return '';
+  };
+
+  const validateManualInputs = () => (
+    validateManualStep(1) || validateManualStep(2) || validateManualStep(3)
+  );
+
+  const handleNext = () => {
+    const validationError = validateManualStep(step);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
+    if (step < totalSteps) {
+      setStep(step + 1);
+    }
+  };
+
   const calculateRisk = async () => {
+    const validationError = validateManualInputs();
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
     setLoading(true);
     let taskId: string | null = null;
     try {
-      // Map form data to the invasive model's expected CSV columns
-      const age = parseFloat(formData.age) || 50;
-      const psa = parseFloat(formData.psa) || 1.0;
-      const familyHistory = formData.familyHistory === 'yes' ? 1 : 0;
-      const hasSymptoms = formData.symptoms === 'yes' ? 1 : 0;
-
-      // Build a CSV string matching invasive model headers
       const headers = invasiveExpectedHeaders.join(',');
-      const raceC = formData.ethnicity === 'caucasian' ? 1 : 0;
-      const raceI = formData.ethnicity === 'asian' ? 1 : 0;
-      const raceM = formData.ethnicity === 'african' || formData.ethnicity === 'hispanic' ? 1 : 0;
-      const regionRural = 0;
+      const raceC = formData.race === 'chinese' ? 1 : 0;
+      const raceI = formData.race === 'indian' ? 1 : 0;
+      const raceM = formData.race === 'malay' ? 1 : 0;
       const values = [
-        age,          // age
-        psa,          // psa_(ng/ml)
-        75,           // body_weight_(kg) - default
-        170,          // height_(cm) - default
-        familyHistory,// family_history_prostate_cancer
-        2,            // educational_background - default
-        hasSymptoms,  // hypertension (proxy for symptoms)
-        0, 0, 0, 0, 0, 0, 0, // heart_disease through other_disease - defaults
-        regionRural, raceC, raceI, raceM,
+        Number(formData.age),
+        Number(formData.psa),
+        Number(formData.bodyWeight),
+        Number(formData.height),
+        binaryValue(formData.familyHistory),
+        Number(formData.education),
+        binaryValue(formData.hypertension),
+        binaryValue(formData.heartDisease),
+        binaryValue(formData.cerebroVascularDisease),
+        binaryValue(formData.hyperlipidemia),
+        binaryValue(formData.diabetesMelitus),
+        binaryValue(formData.renalDisease),
+        binaryValue(formData.otherCancer),
+        binaryValue(formData.otherDisease),
+        formData.region === 'rural' ? 1 : 0,
+        raceC,
+        raceI,
+        raceM,
       ].join(',');
 
       const csvContent = `${headers}\n${values}`;
@@ -341,10 +447,7 @@ export function RiskAssessment() {
       if (predictionProbability === null) throw new Error('Prediction probability missing from server response');
 
       const riskScore = Math.round(predictionProbability * 100);
-      let riskLevel = 'Low';
-      let riskColor = 'green';
-      if (riskScore >= 60) { riskLevel = 'High'; riskColor = 'red'; }
-      else if (riskScore >= 30) { riskLevel = 'Moderate'; riskColor = 'yellow'; }
+      const { riskLevel, riskColor } = getRiskCategory(riskScore);
 
       const newResult = {
         score: riskScore,
@@ -352,6 +455,7 @@ export function RiskAssessment() {
         color: riskColor,
         date: new Date().toLocaleDateString(),
         csvBased: true,
+        manualEntry: true,
         csvType: 'invasive' as const,
         predictionValue: predictionProbability,
         predictionClass,
@@ -469,6 +573,29 @@ export function RiskAssessment() {
             'Invasive/PSA CSV data row has incorrect number of columns.',
         };
       }
+
+      const numericValues = firstDataRow.map((value) => Number(value));
+      if (numericValues.some((value) => !Number.isFinite(value))) {
+        return {
+          valid: false,
+          message: 'Invasive/PSA CSV values must all be numeric.',
+        };
+      }
+
+      const [age, psa, bodyWeight, height] = numericValues;
+      if (age < 18 || age > 100) return { valid: false, message: 'Age must be between 18 and 100.' };
+      if (psa < 0 || psa > 200) return { valid: false, message: 'PSA must be between 0 and 200 ng/mL.' };
+      if (bodyWeight < 30 || bodyWeight > 250) return { valid: false, message: 'Body weight must be between 30 and 250 kg.' };
+      if (height < 100 || height > 230) return { valid: false, message: 'Height must be between 100 and 230 cm.' };
+
+      const binaryIndexes = [4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+      const invalidBinary = binaryIndexes.some((index) => ![0, 1].includes(numericValues[index]));
+      if (invalidBinary) {
+        return {
+          valid: false,
+          message: 'Invasive/PSA binary columns must use 0 or 1 values.',
+        };
+      }
     }
 
     if (type === 'ftir') {
@@ -482,6 +609,21 @@ export function RiskAssessment() {
         return {
           valid: false,
           message: `Uploaded CSV does not match raw FTIR format. Expected at least ${ftirMinWavenumberCount} wavenumber columns (400–4000), but found ${wavenumberCols.length}. Please upload raw FTIR spectral data.`,
+        };
+      }
+
+      const invalidSpectrumValue = header.some((h, index) => {
+        const wavenumber = Number(h);
+        if (!Number.isFinite(wavenumber) || wavenumber < 400 || wavenumber > 4000) {
+          return false;
+        }
+        return !Number.isFinite(Number(firstDataRow[index]));
+      });
+
+      if (invalidSpectrumValue) {
+        return {
+          valid: false,
+          message: 'FTIR wavenumber columns must contain numeric absorbance values.',
         };
       }
     }
@@ -587,10 +729,6 @@ export function RiskAssessment() {
         }
       }
       
-      // Determine risk level based on response
-      let riskLevel = 'Low';
-      let riskColor = 'green';
-      
       if (data.success) {
         const predictionClass = typeof data.prediction !== 'undefined' ? data.prediction : data.result;
         const predictionProbability = toProbability(data.probability) ?? toProbability(data.prediction_probability) ?? toProbability(data.risk_probability) ?? toProbability(predictionClass);
@@ -600,14 +738,7 @@ export function RiskAssessment() {
         
         // Map probability to risk score (0-100 scale). data.prediction is a class label, not the probability.
         const riskScore = Math.round(predictionProbability * 100);
-        
-        if (riskScore >= 60) {
-          riskLevel = 'High';
-          riskColor = 'red';
-        } else if (riskScore >= 30) {
-          riskLevel = 'Moderate';
-          riskColor = 'yellow';
-        }
+        const { riskLevel, riskColor } = getRiskCategory(riskScore);
 
         const newResult = {
           score: riskScore,
@@ -668,22 +799,37 @@ export function RiskAssessment() {
       '',
       `Generated: ${generatedDate}`,
       `Assessment Date: ${assessmentResult.date || generatedDate}`,
-      `Assessment Method: ${assessmentResult.csvBased ? 'File-upload format' : 'Manual entry'}`,
+      `Assessment Method: ${assessmentResult.manualEntry ? 'Manual entry' : assessmentResult.csvBased ? 'File-upload format' : 'Manual entry'}`,
       '',
       'Assessment Result',
       `Risk Level: ${assessmentResult.level} Risk`,
       `Risk Score: ${assessmentResult.score}/100`,
-      ...(assessmentResult.csvBased
+      ...(assessmentResult.manualEntry
         ? [
+            `Age: ${formData.age || 'Not provided'}`,
+            `PSA Level: ${formData.psa || 'Not provided'}`,
+            `Body Weight: ${formData.bodyWeight || 'Not provided'} kg`,
+            `Height: ${formData.height || 'Not provided'} cm`,
+            `Race/Ethnicity: ${formData.race || 'Not provided'}`,
+            `Region: ${formData.region || 'Not provided'}`,
+            `Family History: ${formData.familyHistory || 'Not provided'}`,
+            `Education Background Code: ${formData.education || 'Not provided'}`,
+          ]
+        : assessmentResult.csvBased
+          ? [
             `Model Probability: ${(assessmentResult.predictionValue * 100).toFixed(2)}%`,
             `Model Type: ${assessmentResult.csvType === 'ftir' ? 'FTIR / non-invasive' : 'PSA / invasive'}`,
             assessmentResult.csvFileName ? `Uploaded File: ${assessmentResult.csvFileName}` : '',
           ].filter(Boolean)
-        : [
+          : [
             `Age: ${formData.age || 'Not provided'}`,
-            `Family History: ${formData.familyHistory || 'Not provided'}`,
             `PSA Level: ${formData.psa || 'Not provided'}`,
-            `Symptoms: ${formData.symptoms || 'Not provided'}`,
+            `Body Weight: ${formData.bodyWeight || 'Not provided'} kg`,
+            `Height: ${formData.height || 'Not provided'} cm`,
+            `Race/Ethnicity: ${formData.race || 'Not provided'}`,
+            `Region: ${formData.region || 'Not provided'}`,
+            `Family History: ${formData.familyHistory || 'Not provided'}`,
+            `Education Background Code: ${formData.education || 'Not provided'}`,
           ]),
       '',
       'Recommended Next Steps',
@@ -794,7 +940,7 @@ export function RiskAssessment() {
           </div>
           <h1 className="text-3xl font-semibold tracking-normal text-slate-950 dark:text-white">Assessment results</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600 dark:text-slate-300">
-            Your prostate cancer risk assessment has been completed using {result.csvBased ? 'file-upload format' : 'manual entry'}.
+            Your prostate cancer risk assessment has been completed using {result.manualEntry ? 'manual entry' : result.csvBased ? 'file-upload format' : 'manual entry'}.
           </p>
         </div>
 
@@ -807,7 +953,7 @@ export function RiskAssessment() {
               Risk analysis
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400">
-              Based on {result.csvBased ? 'the uploaded file and selected model' : 'the information you entered manually'}
+              Based on {result.manualEntry ? 'the information you entered manually' : result.csvBased ? 'the uploaded file and selected model' : 'the information you entered manually'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -831,9 +977,36 @@ export function RiskAssessment() {
                 {result.level} Risk
               </h3>
               <p className="text-slate-600 dark:text-slate-300">Risk score: {result.score} / 100</p>
-              {result.csvBased && (
-                <p className="text-xs font-medium text-sky-700 mt-2 dark:text-sky-300">File-upload prediction: {(result.predictionValue * 100).toFixed(2)}%</p>
+              {typeof result.predictionValue === 'number' && (
+                <p className="text-xs font-medium text-sky-700 mt-2 dark:text-sky-300">
+                  {result.manualEntry ? 'Model probability' : 'File-upload prediction'}: {(result.predictionValue * 100).toFixed(2)}%
+                </p>
               )}
+            </div>
+
+            <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-950/65">
+              <h4 className="mb-4 font-semibold text-slate-950 dark:text-white">Risk score legend</h4>
+              <div className="grid gap-3 md:grid-cols-3">
+                {riskBands.map((band) => (
+                  <div
+                    key={band.level}
+                    className={`
+                      rounded-2xl border p-4
+                      ${band.color === 'green' ? 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/25' : ''}
+                      ${band.color === 'yellow' ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/60 dark:bg-amber-950/25' : ''}
+                      ${band.color === 'red' ? 'border-rose-200 bg-rose-50/80 dark:border-rose-900/60 dark:bg-rose-950/25' : ''}
+                    `}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold text-slate-950 dark:text-white">{band.level}</p>
+                      <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        {band.range}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">{band.description}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -929,7 +1102,7 @@ export function RiskAssessment() {
                 setAssessmentMode('form');
                 setCsvFile(null);
                 setCsvType(null);
-                setFormData({ age: '', familyHistory: '', psa: '', symptoms: '', ethnicity: '', lifestyle: '' });
+                setFormData({ ...initialManualFormData });
               }} variant="outline" className={`${outlineButtonClass} flex-1`}>
                 <RotateCcw className="h-4 w-4" />
                 Start a new assessment
@@ -1206,20 +1379,21 @@ export function RiskAssessment() {
       <Card className={cardClass}>
         <CardHeader className={cardHeaderClass}>
           <CardTitle className="text-slate-950 dark:text-white">
-            {step === 1 && 'Personal details'}
-            {step === 2 && 'Medical history'}
-            {step === 3 && 'Lifestyle factors'}
+            {step === 1 && 'Demographics'}
+            {step === 2 && 'PSA and clinical profile'}
+            {step === 3 && 'Medical history'}
+            {step === 4 && 'Review'}
           </CardTitle>
           <CardDescription className="text-slate-600 dark:text-slate-400">
-            {step === 1 && 'Start with basic demographic information.'}
-            {step === 2 && 'Share relevant history and symptoms.'}
-            {step === 3 && 'Add lifestyle context before calculating risk.'}
+            {step === 1 && 'Enter the demographic columns used by the invasive dataset.'}
+            {step === 2 && 'Add PSA, body measurements, family history, and education background.'}
+            {step === 3 && 'Complete the comorbidity fields expected by the clinical model.'}
+            {step === 4 && 'Submit the complete invasive-model row for prediction.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 p-6">
-          {/* Step 1: Personal Information */}
           {step === 1 && (
-            <>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="age">Age *</Label>
                 <Input
@@ -1234,28 +1408,102 @@ export function RiskAssessment() {
               </div>
 
               <div className="space-y-2">
-                <Label>Ethnicity</Label>
-                <Select value={formData.ethnicity} onValueChange={(value) => handleChange('ethnicity', value)}>
+                <Label>Race / ethnicity *</Label>
+                <Select value={formData.race} onValueChange={(value) => handleChange('race', value)}>
                   <SelectTrigger className={inputClass}>
-                    <SelectValue placeholder="Select your ethnicity" />
+                    <SelectValue placeholder="Select race / ethnicity" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="caucasian">Caucasian</SelectItem>
-                    <SelectItem value="african">African American</SelectItem>
-                    <SelectItem value="hispanic">Hispanic</SelectItem>
-                    <SelectItem value="asian">Asian</SelectItem>
+                    <SelectItem value="chinese">Chinese</SelectItem>
+                    <SelectItem value="indian">Indian</SelectItem>
+                    <SelectItem value="malay">Malay</SelectItem>
                     <SelectItem value="other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Mapped to the dataset race_C, race_I, and race_M fields.</p>
               </div>
-            </>
+
+              <div className="space-y-2 md:col-span-2">
+                <Label>Region *</Label>
+                <RadioGroup value={formData.region} onValueChange={(value) => handleChange('region', value)}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="urban" id="region-urban" />
+                    <Label htmlFor="region-urban" className="font-normal">Urban</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="rural" id="region-rural" />
+                    <Label htmlFor="region-rural" className="font-normal">Rural</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </div>
           )}
 
-          {/* Step 2: Medical History */}
           {step === 2 && (
-            <>
+            <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label>Family History of Prostate Cancer</Label>
+                <Label htmlFor="psa">PSA level (ng/mL) *</Label>
+                <Input
+                  id="psa"
+                  type="number"
+                  min="0"
+                  max="200"
+                  step="0.1"
+                  placeholder="e.g. 6.7"
+                  value={formData.psa}
+                  onChange={(e) => handleChange('psa', e.target.value)}
+                  className={inputClass}
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400">Accepted range: 0-200 ng/mL.</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Education background *</Label>
+                <Select value={formData.education} onValueChange={(value) => handleChange('education', value)}>
+                  <SelectTrigger className={inputClass}>
+                    <SelectValue placeholder="Select education level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">No formal / primary</SelectItem>
+                    <SelectItem value="1">Secondary</SelectItem>
+                    <SelectItem value="2">Tertiary</SelectItem>
+                    <SelectItem value="3">Postgraduate</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="body-weight">Body weight (kg) *</Label>
+                <Input
+                  id="body-weight"
+                  type="number"
+                  min="30"
+                  max="250"
+                  step="0.1"
+                  placeholder="e.g. 67"
+                  value={formData.bodyWeight}
+                  onChange={(e) => handleChange('bodyWeight', e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="height">Height (cm) *</Label>
+                <Input
+                  id="height"
+                  type="number"
+                  min="100"
+                  max="230"
+                  step="0.1"
+                  placeholder="e.g. 167"
+                  value={formData.height}
+                  onChange={(e) => handleChange('height', e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Family history of prostate cancer *</Label>
                 <RadioGroup value={formData.familyHistory} onValueChange={(value) => handleChange('familyHistory', value)}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="yes" id="family-yes" />
@@ -1265,69 +1513,61 @@ export function RiskAssessment() {
                     <RadioGroupItem value="no" id="family-no" />
                     <Label htmlFor="family-no" className="font-normal">No</Label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="unknown" id="family-unknown" />
-                    <Label htmlFor="family-unknown" className="font-normal">Don't Know</Label>
-                  </div>
                 </RadioGroup>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="psa">PSA Level (ng/mL)</Label>
-                <Input
-                  id="psa"
-                  type="number"
-                  step="0.1"
-                  placeholder="Enter your most recent PSA level"
-                  value={formData.psa}
-                  onChange={(e) => handleChange('psa', e.target.value)}
-                  className={inputClass}
-                />
-                <p className="text-xs text-slate-500 dark:text-slate-400">Normal range is typically 0-4 ng/mL</p>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Do you experience any urinary symptoms?</Label>
-                <RadioGroup value={formData.symptoms} onValueChange={(value) => handleChange('symptoms', value)}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="yes" id="symptoms-yes" />
-                    <Label htmlFor="symptoms-yes" className="font-normal">Yes (difficulty urinating, frequent urination, etc.)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="no" id="symptoms-no" />
-                    <Label htmlFor="symptoms-no" className="font-normal">No</Label>
-                  </div>
-                </RadioGroup>
-              </div>
-            </>
+            </div>
           )}
 
-          {/* Step 3: Lifestyle */}
           {step === 3 && (
-            <>
-              <div className="space-y-2">
-                <Label>Overall Lifestyle</Label>
-                <RadioGroup value={formData.lifestyle} onValueChange={(value) => handleChange('lifestyle', value)}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="active" id="lifestyle-active" />
-                    <Label htmlFor="lifestyle-active" className="font-normal">Active (regular exercise, healthy diet)</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="moderate" id="lifestyle-moderate" />
-                    <Label htmlFor="lifestyle-moderate" className="font-normal">Moderate</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="sedentary" id="lifestyle-sedentary" />
-                    <Label htmlFor="lifestyle-sedentary" className="font-normal">Sedentary (limited physical activity)</Label>
-                  </div>
-                </RadioGroup>
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              {[
+                ['hypertension', 'Hypertension'],
+                ['heartDisease', 'Heart disease'],
+                ['cerebroVascularDisease', 'Cerebrovascular disease'],
+                ['hyperlipidemia', 'Hyperlipidemia'],
+                ['diabetesMelitus', 'Diabetes mellitus'],
+                ['renalDisease', 'Renal disease'],
+                ['otherCancer', 'Other cancer'],
+                ['otherDisease', 'Other disease'],
+              ].map(([field, label]) => (
+                <div key={field} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+                  <Label>{label} *</Label>
+                  <RadioGroup
+                    value={formData[field as keyof typeof formData]}
+                    onValueChange={(value) => handleChange(field, value)}
+                    className="mt-3"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="yes" id={`${field}-yes`} />
+                      <Label htmlFor={`${field}-yes`} className="font-normal">Yes</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="no" id={`${field}-no`} />
+                      <Label htmlFor={`${field}-no`} className="font-normal">No</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              ))}
+            </div>
+          )}
 
+          {step === 4 && (
+            <>
               <div className="rounded-3xl border border-sky-100 bg-sky-50/80 p-4 dark:border-sky-900/60 dark:bg-sky-950/35">
                 <h4 className="font-semibold text-sky-950 mb-2 dark:text-sky-100">Ready to submit</h4>
                 <p className="text-sm text-sky-800 dark:text-sky-200">
-                  Review your answers and click "Calculate risk" to see your assessment results.
+                  This manual entry will be converted into the invasive dataset columns: PSA, body measurements, family history, education, comorbidity flags, region, and race indicators.
                 </p>
+              </div>
+              <div className="grid gap-3 text-sm md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+                  <p className="font-semibold text-slate-950 dark:text-white">Core values</p>
+                  <p className="mt-2 text-slate-600 dark:text-slate-300">Age {formData.age || '-'}, PSA {formData.psa || '-'} ng/mL, weight {formData.bodyWeight || '-'} kg, height {formData.height || '-'} cm.</p>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/55">
+                  <p className="font-semibold text-slate-950 dark:text-white">Dataset coding</p>
+                  <p className="mt-2 text-slate-600 dark:text-slate-300">Race {formData.race || '-'}, region {formData.region || '-'}, education code {formData.education || '-'}.</p>
+                </div>
               </div>
             </>
           )}
