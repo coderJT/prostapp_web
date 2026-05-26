@@ -62,9 +62,9 @@ type ReportSourceFilter = 'all' | PredictionHistoryEntry['source'];
 const shellClass =
   'rounded-[2rem] border border-white/80 bg-white/90 shadow-xl shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/25';
 const cardClass =
-  'rounded-[2rem] border-white/80 bg-white/90 shadow-xl shadow-slate-200/60 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20';
+  'rounded-[1.5rem] border border-slate-100 bg-white/90 shadow-sm dark:border-slate-800 dark:bg-slate-900';
 const mutedPanelClass =
-  'rounded-3xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-950/60';
+  'border-b border-slate-100 pb-4 last:border-b-0 last:pb-0 dark:border-slate-800';
 
 const ftirRegions = [
   { range: '3500-3000', label: 'Proteins and hydration', meaning: 'protein N-H and water/O-H signals' },
@@ -239,6 +239,60 @@ function modalityPlainLanguage(entry: PredictionHistoryEntry | null) {
   return 'This manual assessment is a simplified risk record. It is useful for tracking, but it does not include the model explanation depth available from CSV-based reports.';
 }
 
+function clinicalMeaningPoints(entry: PredictionHistoryEntry | null) {
+  if (!entry) return [];
+
+  if (entry.source === 'ml-ftir') {
+    return [
+      'A higher FTIR probability means the urinary EV spectrum resembles patterns the model learned from prostate-cancer-associated samples. It should be interpreted as a screening-support signal, not proof of tumour presence or grade.',
+      'Urinary EV FTIR can be attractive because it is non-invasive, but spectra are affected by sample collection, EV isolation, hydration, preprocessing, instrument variation, and the small research datasets used to train models.',
+      'Because the classifier uses PCA-compressed spectral features, individual “Column” drivers are not the same as PSA, Gleason score, MRI PI-RADS, or a named biomarker. They represent combined biochemical variance across spectral regions.',
+    ];
+  }
+
+  if (entry.source === 'ml-invasive') {
+    return [
+      'A higher PSA/invasive-model probability means the clinical variables resemble patterns associated with higher modeled need for invasive assessment in the training data.',
+      'PSA is sensitive but not specific: benign prostatic enlargement, prostatitis, urinary infection, recent ejaculation, catheterization, cystoscopy, or biopsy can raise PSA without cancer.',
+      'A lower modeled probability does not exclude clinically significant prostate cancer when PSA is rising, DRE is abnormal, MRI is suspicious, or family history is strong.',
+    ];
+  }
+
+  return [
+    'Manual entries are useful for continuity and patient education, but they are not a substitute for a validated clinical risk calculator or clinician assessment.',
+    'Interpret any risk category alongside age, PSA trend, symptoms, DRE, MRI, previous biopsy findings, family history, and patient preferences.',
+  ];
+}
+
+function nextStepPoints(entry: PredictionHistoryEntry | null) {
+  if (!entry) return [];
+  const common = [
+    'Confirm the input data quality before acting on the result, especially uploaded CSV values, units, missing fields, and whether the sample belongs to the correct patient.',
+    'Discuss the result with a clinician rather than using the score alone to decide on biopsy, imaging, treatment, or reassurance.',
+  ];
+
+  if (entry.riskLevel === 'High') {
+    return [
+      'Review whether the patient has red-flag context: rapidly rising PSA, abnormal DRE, suspicious MRI, previous atypia/HGPIN, strong family history, or concerning urinary/bone symptoms.',
+      'Consider whether repeat PSA, urinalysis/infection treatment, prostate volume adjustment, MRI, or biopsy discussion is clinically appropriate.',
+      ...common,
+    ];
+  }
+
+  if (entry.riskLevel === 'Moderate') {
+    return [
+      'Look for factors that could move concern up or down: PSA density/velocity, recent infection or instrumentation, DRE/MRI findings, age, comorbidity, and family history.',
+      'A repeat measurement or additional clinical context may be more informative than acting on one model output.',
+      ...common,
+    ];
+  }
+
+  return [
+    'Continue routine follow-up if the wider clinical picture is reassuring, but do not ignore persistent symptoms, rising PSA, abnormal DRE, or suspicious imaging.',
+    ...common,
+  ];
+}
+
 function explanationSections(text?: string | null) {
   if (!text) return {};
   const sections: Record<string, string[]> = {};
@@ -397,6 +451,8 @@ export function HistoryReport() {
   const limeSections = useMemo(() => explanationSections(selectedEntry?.limeSummary), [selectedEntry?.limeSummary]);
   const shapSections = useMemo(() => explanationSections(selectedEntry?.shapSummary), [selectedEntry?.shapSummary]);
   const selectedFeatureCards = useMemo(() => topFeatureCards(selectedEntry), [selectedEntry]);
+  const selectedClinicalMeaning = useMemo(() => clinicalMeaningPoints(selectedEntry), [selectedEntry]);
+  const selectedNextSteps = useMemo(() => nextStepPoints(selectedEntry), [selectedEntry]);
   const ftirSpectrumData = selectedEntry?.ftirSpectrumData || [];
   const sourceCounts = useMemo(
     () => ({
@@ -753,7 +809,7 @@ export function HistoryReport() {
         {selectedEntry ? (
           <div className="space-y-6">
             <div className="grid gap-4 2xl:grid-cols-[1fr_0.9fr]">
-              <Card className={`${cardClass} border-l-4 ${riskTone.accent}`}>
+              <Card className={cardClass}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-3 text-slate-950 dark:text-white">
                     <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-8 ${riskTone.ring}`}>
@@ -781,7 +837,7 @@ export function HistoryReport() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-sky-100 bg-sky-50/80 p-5 dark:border-sky-900/60 dark:bg-sky-950/35">
+                  <div className="rounded-2xl bg-sky-50/80 p-5 dark:bg-sky-950/35">
                     <div className="flex items-start gap-3">
                       <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-sky-700 dark:text-sky-300" />
                       <div>
@@ -822,7 +878,7 @@ export function HistoryReport() {
                       <span className="text-right font-medium text-slate-900 dark:text-slate-100">{selectedEntry.csvFileName}</span>
                     </div>
                   )}
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                  <div className="rounded-2xl bg-amber-50 px-4 py-3 text-amber-900 dark:bg-amber-950/35 dark:text-amber-100">
                     This is decision support only. It should be reviewed with patient history, examination findings, PSA context, imaging, and clinician judgement.
                   </div>
                 </CardContent>
@@ -840,10 +896,19 @@ export function HistoryReport() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-950/60">
+                <div className="border-b border-slate-100 pb-5 dark:border-slate-800">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Plain English result</p>
                   <p className="mt-3 text-base leading-7 text-slate-900 dark:text-slate-100">{riskPlainLanguage(selectedEntry)}</p>
                   <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{modalityPlainLanguage(selectedEntry)}</p>
+                </div>
+
+                <div className="border-b border-slate-100 pb-5 dark:border-slate-800">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Medical interpretation</p>
+                  <div className="mt-3 space-y-3 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                    {selectedClinicalMeaning.map((point) => (
+                      <p key={point}>{point}</p>
+                    ))}
+                  </div>
                 </div>
 
                 <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
@@ -855,7 +920,7 @@ export function HistoryReport() {
                     {selectedFeatureCards.length ? (
                       <div className="grid gap-3">
                         {selectedFeatureCards.map((feature) => (
-                          <div key={`${feature.label}-${feature.score}`} className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                          <div key={`${feature.label}-${feature.score}`} className="border-b border-slate-100 pb-4 last:border-b-0 dark:border-slate-800">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                               <p className="font-medium text-slate-950 dark:text-slate-100">{feature.label}</p>
                               <Badge variant="outline" className="w-fit rounded-full border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
@@ -874,7 +939,7 @@ export function HistoryReport() {
                         ))}
                       </div>
                     ) : (
-                      <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                      <p className="border-l-2 border-slate-200 pl-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
                         No feature-level driver list was returned for this report.
                       </p>
                     )}
@@ -885,14 +950,15 @@ export function HistoryReport() {
                       <Activity className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
                       <h3 className="font-semibold text-slate-950 dark:text-white">Clinical context to check</h3>
                     </div>
-                    <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm leading-6 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/35 dark:text-sky-100">
+                    <div className="rounded-2xl bg-sky-50/80 p-4 text-sm leading-6 text-sky-900 dark:bg-sky-950/35 dark:text-sky-100">
                       <ul className="space-y-2">
-                        <li>Review PSA trend, prostate volume, urinary infection/prostatitis possibility, DRE findings, MRI, and biopsy history.</li>
-                        <li>For FTIR, treat the result as a non-invasive urinary EV spectral signal that may support triage, not as a replacement for standard clinical assessment.</li>
+                        {selectedNextSteps.map((point) => (
+                          <li key={point}>{point}</li>
+                        ))}
                       </ul>
                     </div>
                     {(getSectionText(limeSections, ['Patient takeaway', 'Summary']).length > 0 || getSectionText(limeSections, ['Suggested next context']).length > 0) && (
-                      <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                      <div className="border-t border-slate-100 pt-4 dark:border-slate-800">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">LLM clinical summary</p>
                         <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
                           {[...getSectionText(limeSections, ['Patient takeaway', 'Summary']), ...getSectionText(limeSections, ['Suggested next context']).slice(0, 2)].slice(0, 4).map((line, index) => (
@@ -919,7 +985,7 @@ export function HistoryReport() {
                 </CardHeader>
                 <CardContent className="space-y-5">
                   {ftirSpectrumData.length ? (
-                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                    <div className="rounded-2xl bg-emerald-50/40 p-4 dark:bg-emerald-950/20">
                       <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={ftirSpectrumData} margin={{ top: 8, right: 18, bottom: 12, left: 0 }}>
@@ -943,19 +1009,27 @@ export function HistoryReport() {
                       </div>
                     </div>
                   ) : (
-                    <div className="rounded-3xl border border-dashed border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                    <div className="rounded-2xl bg-amber-50 p-5 text-sm leading-6 text-amber-900 dark:bg-amber-950/35 dark:text-amber-100">
                       This saved report does not include raw FTIR spectrum points. New FTIR reports will store a downsampled spectrum so this graph can be shown here.
                     </div>
                   )}
 
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-x-6 gap-y-4 md:grid-cols-2">
                     {ftirRegions.map((region) => (
-                      <div key={region.range} className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                      <div key={region.range} className="border-t border-slate-100 pt-4 dark:border-slate-800">
                         <p className="text-sm font-semibold text-slate-950 dark:text-white">{region.range} cm-1</p>
                         <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">{region.label}</p>
                         <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{region.meaning}</p>
                       </div>
                     ))}
+                  </div>
+                  <div className="border-t border-slate-100 pt-4 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                    <p>
+                      In practical terms, FTIR does not measure a single cancer marker. It captures a biochemical fingerprint from urinary extracellular vesicles; cancer-associated changes may alter protein, lipid, carbohydrate, nucleic-acid, phosphate, and hydration-related absorbance patterns. The model then learns statistical differences in those patterns.
+                    </p>
+                    <p className="mt-3">
+                      This is why FTIR results are best used as an additional triage or research-support signal. A suspicious FTIR result should be reconciled with PSA, DRE, MRI, biopsy history, urine infection status, and sample quality before any clinical decision is made.
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -975,7 +1049,7 @@ export function HistoryReport() {
                 </CardHeader>
                 <CardContent>
                   {isFtirReport && (
-                    <div className="mb-4 rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm leading-6 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/35 dark:text-sky-100">
+                    <div className="mb-4 rounded-2xl bg-sky-50/80 px-4 py-3 text-sm leading-6 text-sky-900 dark:bg-sky-950/35 dark:text-sky-100">
                       Raw FTIR files contain thousands of wavenumber columns. ProstAPP reduces them into sector PCA features first, so a direct peak-by-peak explanation is not available without a PCA back-mapping layer.
                     </div>
                   )}
@@ -998,7 +1072,7 @@ export function HistoryReport() {
                 <CardContent className="space-y-4">
                   {renderChart(shapChartData, 'No SHAP features found for this report.')}
                   {getSectionText(shapSections, ['Patient takeaway', 'Summary', 'Clinical caution']).length > 0 && (
-                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-300">
+                    <div className="border-t border-slate-100 pt-4 text-sm leading-6 text-slate-700 dark:border-slate-800 dark:text-slate-300">
                       {getSectionText(shapSections, ['Patient takeaway', 'Summary', 'Clinical caution']).slice(0, 3).map((line, index) => (
                         <p key={`${line}-${index}`}>{renderFormattedSummary(line)}</p>
                       ))}
@@ -1020,7 +1094,7 @@ export function HistoryReport() {
               </CardHeader>
               <CardContent>
                 {selectedEntry.featureNotes?.length ? (
-                  <div className="overflow-x-auto rounded-3xl border border-slate-100 dark:border-slate-800">
+                  <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
