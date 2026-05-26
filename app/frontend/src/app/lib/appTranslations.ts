@@ -24,7 +24,6 @@ export const appTranslations: Record<string, TranslationEntry> = {
   },
   'Risk Assessment': { ms: 'Penilaian Risiko', zh: '风险评估' },
   'Evaluate your prostate cancer risk': { ms: 'Nilai risiko kanser prostat anda', zh: '评估您的前列腺癌风险' },
-  'Medical History': { ms: 'Sejarah Perubatan', zh: '病史' },
   'View and manage your health records': { ms: 'Lihat dan urus rekod kesihatan anda', zh: '查看和管理您的健康记录' },
   Results: { ms: 'Keputusan', zh: '结果' },
   'View your assessment results': { ms: 'Lihat keputusan penilaian anda', zh: '查看您的评估结果' },

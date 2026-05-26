@@ -4,7 +4,6 @@ import { LoginPage } from "./pages/LoginPage";
 import { SignupPage } from "./pages/SignupPage";
 import { Dashboard } from "./pages/Dashboard";
 import { RiskAssessment } from "./pages/RiskAssessment";
-import { MedicalHistory } from "./pages/MedicalHistory";
 import { Results } from "./pages/Results";
 import { Education } from "./pages/Education";
 import { Appointments } from "./pages/Appointments";
@@ -34,10 +33,6 @@ export const router = createBrowserRouter([
       {
         path: "risk-assessment",
         Component: RiskAssessment,
-      },
-      {
-        path: "medical-history",
-        Component: MedicalHistory,
       },
       {
         path: "results",

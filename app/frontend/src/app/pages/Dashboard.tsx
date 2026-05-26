@@ -8,7 +8,6 @@ import { clearUserSession, getStoredUser, type AppUser } from '../auth/session';
 import { getNextAppointment } from '../appointmentsStore';
 import { 
   Activity, 
-  FileText, 
   Calendar, 
   BookOpen, 
   User, 
@@ -63,12 +62,6 @@ export function Dashboard() {
       icon: BarChart3,
       label: 'Risk Assessment',
       description: 'Evaluate your prostate cancer risk',
-    },
-    {
-      path: '/dashboard/medical-history',
-      icon: FileText,
-      label: 'Medical History',
-      description: 'View and manage your health records',
     },
     {
       path: '/dashboard/results',
