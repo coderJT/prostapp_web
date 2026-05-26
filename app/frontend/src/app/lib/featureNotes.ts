@@ -180,7 +180,7 @@ export function getFeatureNoteMeaning(note: FeatureNoteLike) {
     return `This records ${binaryFeatureLabels[feature]}. It may reflect background health status or care pathway context, not a direct causal finding.${direction}`;
   }
   if (/^Column_\d+$/.test(feature)) {
-    return `This is a PCA component derived from the FTIR spectrum. It reflects compressed spectral patterns, not a directly named clinical measurement.${direction}`;
+    return `This is a PCA component derived from a defined FTIR wavenumber region. It should be interpreted with neighboring components as regional biochemical context, not as a standalone biomarker or clinical measurement.${direction}`;
   }
   if (note.mean_abs_shap !== undefined || note.mean_shap !== undefined) {
     return 'Model-wide SHAP importance. Use it as model context, not patient-specific proof.';

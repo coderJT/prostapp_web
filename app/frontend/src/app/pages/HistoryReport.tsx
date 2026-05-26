@@ -61,12 +61,21 @@ type FeatureCard = {
   featureKey: string;
   label: string;
   value: string | null;
-  direction: string;
   score: number;
   plainMeaning: string;
   clinicalMeaning: string;
   caution?: string;
   ftirRegion: string | null;
+};
+
+type FtirRegionSummary = {
+  range: string;
+  label: string;
+  meaning: string;
+  interpretation: string;
+  components: number[];
+  pcaValues: number[];
+  contributionScores: number[];
 };
 
 type ReportSourceFilter = 'all' | PredictionHistoryEntry['source'];
@@ -79,14 +88,70 @@ const mutedPanelClass =
   'border-b border-slate-100 pb-4 last:border-b-0 last:pb-0 dark:border-slate-800';
 
 const ftirRegions = [
-  { range: '3500-3000', label: 'Proteins and hydration', meaning: 'protein N-H and water/O-H signals' },
-  { range: '3000-2800', label: 'Lipids', meaning: 'lipid C-H stretching' },
-  { range: '1740-1720', label: 'Lipid carbonyl', meaning: 'lipid C=O stretching' },
-  { range: '1700-1470', label: 'Protein Amide I/II', meaning: 'protein secondary-structure signals' },
-  { range: '1470-1200', label: 'Proteins and lipids', meaning: 'CH2/CH3 deformation and Amide III' },
-  { range: '1200-1000', label: 'Carbohydrates and nucleic acids', meaning: 'C-O/C-C and phosphate-related signals' },
-  { range: '1000-700', label: 'Nucleic acids and sugars', meaning: 'DNA/RNA phosphate and saccharide vibrations' },
-  { range: '700-400', label: 'Phosphates and lipid skeleton', meaning: 'phosphate bending and lipid skeletal vibrations' },
+  {
+    range: '3500-3000',
+    label: 'Proteins and hydration',
+    meaning: 'Amide A protein N-H stretching and H-bonded water/O-H hydration signals',
+    interpretation: 'Often reflects protein content, hydrogen bonding, and hydration state. It can be affected by EV preparation, urine concentration, and sample handling, so it is supportive rather than cancer-specific.',
+    componentStart: 0,
+    componentEnd: 3,
+  },
+  {
+    range: '3000-2800',
+    label: 'Lipids',
+    meaning: 'symmetric and asymmetric lipid C-H stretching',
+    interpretation: 'Can reflect membrane lipid composition of urinary extracellular vesicles. Prostate-cancer-derived EVs may differ in lipid cargo, but this region is not a standalone diagnostic marker.',
+    componentStart: 4,
+    componentEnd: 17,
+  },
+  {
+    range: '1740-1720',
+    label: 'Lipid carbonyl',
+    meaning: 'lipid C=O stretching band',
+    interpretation: 'A narrow lipid carbonyl region that can relate to ester-containing lipids. Use as part of a broader EV fingerprint rather than a single peak diagnosis.',
+    componentStart: 18,
+    componentEnd: 18,
+  },
+  {
+    range: '1700-1470',
+    label: 'Protein Amide I/II',
+    meaning: 'protein secondary-structure signals from C=O stretching, C-N stretching, and N-H bending',
+    interpretation: 'This is one of the most biologically relevant FTIR regions for cancer studies because Amide I/II bands can shift with protein conformation and EV cargo. The attached slides note strong performance when this region was combined with clinical data.',
+    componentStart: 19,
+    componentEnd: 37,
+  },
+  {
+    range: '1470-1200',
+    label: 'Proteins and lipids',
+    meaning: 'lipid CH2/CH3 deformations and protein Amide III C-N stretching',
+    interpretation: 'Captures mixed protein-lipid structural information from EVs. It is useful as part of the spectral pattern, but individual PCA scores should not be interpreted as named biomarkers.',
+    componentStart: 38,
+    componentEnd: 52,
+  },
+  {
+    range: '1200-1000',
+    label: 'Carbohydrates and nucleic acids',
+    meaning: 'C-O/C-C stretching, sugar vibrations, and phosphate-related DNA/RNA signals',
+    interpretation: 'May reflect nucleic-acid, carbohydrate, and phosphate contributions in EV cargo. Treat as broad biochemical context, not a direct genomic test.',
+    componentStart: 53,
+    componentEnd: 71,
+  },
+  {
+    range: '1000-700',
+    label: 'Nucleic acids and sugars',
+    meaning: 'CH out-of-plane bending, PO2 asymmetric stretching, and saccharide vibrations',
+    interpretation: 'Represents lower-frequency nucleic-acid and sugar-related absorbance patterns. It can support classification but needs validation against clinical endpoints.',
+    componentStart: 72,
+    componentEnd: 90,
+  },
+  {
+    range: '700-400',
+    label: 'Phosphates and lipid skeleton',
+    meaning: 'PO4 bending in phospholipids/nucleic acids and lipid skeletal vibrations',
+    interpretation: 'Captures phosphate and lipid-skeleton vibrations. Signals here are best understood as part of the overall urinary EV fingerprint.',
+    componentStart: 91,
+    componentEnd: 102,
+  },
 ];
 
 function sourceLabel(source: PredictionHistoryEntry['source']) {
@@ -358,12 +423,28 @@ function getSectionText(sections: Record<string, string[]>, names: string[]) {
 function featureDirectionLabel(value: unknown) {
   const numeric = getNumericValue(value);
   if (numeric === null) return 'influenced the model';
+  if (Math.abs(numeric) < 0.000001) return 'had no returned directional contribution';
   return numeric >= 0 ? 'raised the modeled estimate' : 'lowered the modeled estimate';
 }
 
 function featureDirectionSentence(score: number) {
+  if (Math.abs(score) < 0.000001) {
+    return 'No directional contribution weight was returned for this component. The PCA score shown is the transformed spectral value, not the amount it changed the prediction.';
+  }
   const direction = score >= 0 ? 'toward the modeled positive class' : 'away from the modeled positive class';
   return `This contribution moved the estimate ${direction}. The number is a local model contribution, not a measure of disease severity.`;
+}
+
+function hasContributionScore(item: unknown) {
+  if (Array.isArray(item)) return getNumericValue(item[1]) !== null;
+  if (!item || typeof item !== 'object') return false;
+  const feature = item as Record<string, unknown>;
+  return (
+    getNumericValue(feature.weight) !== null ||
+    getNumericValue(feature.mean_shap) !== null ||
+    getNumericValue(feature.mean_abs_shap) !== null ||
+    getNumericValue(feature.score) !== null
+  );
 }
 
 function isRaceFeature(feature: string) {
@@ -476,12 +557,14 @@ function pcaComponentNumber(value: unknown) {
 function inferFtirRegionFromComponent(feature: unknown) {
   const component = pcaComponentNumber(feature);
   if (component === null) return null;
-  const region = ftirRegions[Math.min(ftirRegions.length - 1, Math.floor(component / 13))];
+  const region = ftirRegions.find((item) => component >= item.componentStart && component <= item.componentEnd);
   return region ? `${region.range} cm-1, ${region.label.toLowerCase()}` : null;
 }
 
 function topFeatureCards(entry: PredictionHistoryEntry | null) {
-  const sourceFeatures = entry?.topLimeFeatures?.length ? entry.topLimeFeatures : entry?.featureNotes || [];
+  const sourceFeatures = entry?.topLimeFeatures?.length
+    ? entry.topLimeFeatures
+    : (entry?.featureNotes || []).filter(hasContributionScore);
   if (!entry || !sourceFeatures.length) return [];
   return sourceFeatures
     .slice(0, 5)
@@ -501,7 +584,6 @@ function topFeatureCards(entry: PredictionHistoryEntry | null) {
         featureKey: feature.featureKey,
         label: formatFeatureName(displayNote),
         value: feature.patientValue === null && !feature.displayValue ? null : formatFeatureNoteValue(displayNote),
-        direction: featureDirectionLabel(feature.score),
         score: feature.score,
         plainMeaning: featureDirectionSentence(feature.score),
         clinicalMeaning: depth.clinicalMeaning,
@@ -509,6 +591,70 @@ function topFeatureCards(entry: PredictionHistoryEntry | null) {
         ftirRegion: entry.source === 'ml-ftir' ? inferFtirRegionFromComponent(feature.featureKey) : null,
       };
     });
+}
+
+function formatComponentList(components: number[]) {
+  const sorted = [...new Set(components)].sort((a, b) => a - b);
+  if (!sorted.length) return 'No PCA components listed';
+  if (sorted.length === 1) return `Component ${sorted[0]}`;
+  const isContiguous = sorted.every((component, index) => index === 0 || component === sorted[index - 1] + 1);
+  if (isContiguous) return `Components ${sorted[0]}-${sorted[sorted.length - 1]}`;
+  return `Components ${sorted.slice(0, 6).join(', ')}${sorted.length > 6 ? `, +${sorted.length - 6} more` : ''}`;
+}
+
+function formatNumberRange(values: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  if (sorted.length === 1) return formatModelNumber(sorted[0]);
+  return `${formatModelNumber(sorted[0])} to ${formatModelNumber(sorted[sorted.length - 1])}`;
+}
+
+function summarizeContributionScores(values: number[]) {
+  if (!values.length) return 'No LIME contribution weights were returned for these components, so the PCA scores should be read as spectral coordinates rather than prediction drivers.';
+  const positive = values.filter((value) => value > 0.000001).length;
+  const negative = values.filter((value) => value < -0.000001).length;
+  const strongest = values.reduce((best, value) => (Math.abs(value) > Math.abs(best) ? value : best), 0);
+  if (positive && negative) {
+    return `Mixed contribution directions were returned in this region. Strongest local contribution: ${formatModelNumber(strongest)}.`;
+  }
+  if (positive) return `Returned LIME weights in this region pushed the model toward the positive class. Strongest local contribution: ${formatModelNumber(strongest)}.`;
+  if (negative) return `Returned LIME weights in this region pushed the model away from the positive class. Strongest local contribution: ${formatModelNumber(strongest)}.`;
+  return 'Returned contribution weights were effectively zero, so this region should not be described as a major driver for this report.';
+}
+
+function ftirRegionSummaries(entry: PredictionHistoryEntry | null) {
+  if (!entry || entry.source !== 'ml-ftir') return [];
+  const sourceItems = [...(entry.topLimeFeatures || []), ...(entry.featureNotes || [])];
+  const summaries = new Map<string, FtirRegionSummary>();
+
+  sourceItems.forEach((item) => {
+    const detail = normalizeFeatureDetail(item);
+    const component = pcaComponentNumber(detail?.featureKey);
+    if (component === null || !detail) return;
+    const region = ftirRegions.find((candidate) => component >= candidate.componentStart && component <= candidate.componentEnd);
+    if (!region) return;
+    const existing = summaries.get(region.range) || {
+      range: region.range,
+      label: region.label,
+      meaning: region.meaning,
+      interpretation: region.interpretation,
+      components: [],
+      pcaValues: [],
+      contributionScores: [],
+    };
+
+    existing.components.push(component);
+    const pcaValue = getNumericValue(detail.patientValue);
+    if (pcaValue !== null) existing.pcaValues.push(pcaValue);
+    if (hasContributionScore(item)) existing.contributionScores.push(detail.score);
+    summaries.set(region.range, existing);
+  });
+
+  return Array.from(summaries.values()).sort(
+    (a, b) =>
+      ftirRegions.findIndex((region) => region.range === a.range) -
+      ftirRegions.findIndex((region) => region.range === b.range),
+  );
 }
 
 function formatReportDay(value: string) {
@@ -613,6 +759,7 @@ export function HistoryReport() {
   const limeSections = useMemo(() => explanationSections(selectedEntry?.limeSummary), [selectedEntry?.limeSummary]);
   const shapSections = useMemo(() => explanationSections(selectedEntry?.shapSummary), [selectedEntry?.shapSummary]);
   const selectedFeatureCards = useMemo(() => topFeatureCards(selectedEntry), [selectedEntry]);
+  const selectedFtirRegionSummaries = useMemo(() => ftirRegionSummaries(selectedEntry), [selectedEntry]);
   const hasFairnessWarning = useMemo(
     () => hasFairnessSensitiveDrivers(selectedEntry, selectedFeatureCards),
     [selectedEntry, selectedFeatureCards],
@@ -1091,7 +1238,36 @@ export function HistoryReport() {
                         </p>
                       </div>
                     )}
-                    {selectedFeatureCards.length ? (
+                    {isFtirReport && selectedFtirRegionSummaries.length ? (
+                      <div className="space-y-4">
+                        <div className="rounded-xl bg-emerald-50/80 px-4 py-3 text-sm leading-6 text-emerald-950 dark:bg-emerald-950/35 dark:text-emerald-100">
+                          FTIR is easiest to read at the region level. The PCA components below are grouped back to the urinary EV spectral regions from the attached slides, so the report explains proteins, lipids, nucleic-acid, phosphate, and hydration patterns instead of repeating individual component boilerplate.
+                        </div>
+                        {selectedFtirRegionSummaries.map((region) => (
+                          <div key={region.range} className="border-b border-slate-100 pb-4 last:border-b-0 dark:border-slate-800">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <p className="font-medium text-slate-950 dark:text-slate-100">
+                                  {region.range} cm-1 - {region.label}
+                                </p>
+                                <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                  {formatComponentList(region.components)}
+                                  {formatNumberRange(region.pcaValues) ? ` | PCA scores ${formatNumberRange(region.pcaValues)}` : ''}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="w-fit rounded-full border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-200">
+                                {region.contributionScores.length ? 'weighted' : 'spectral context'}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">{region.meaning}.</p>
+                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{region.interpretation}</p>
+                            <p className="mt-2 text-xs leading-5 text-emerald-700 dark:text-emerald-300">
+                              {summarizeContributionScores(region.contributionScores)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : selectedFeatureCards.length ? (
                       <div className="grid gap-3">
                         {selectedFeatureCards.map((feature) => (
                           <div key={`${feature.label}-${feature.score}`} className="border-b border-slate-100 pb-4 last:border-b-0 dark:border-slate-800">
@@ -1228,18 +1404,18 @@ export function HistoryReport() {
               <Card className={cardClass}>
                 <CardHeader>
                   <CardTitle className="text-slate-950 dark:text-white">
-                    {isFtirReport ? 'Key FTIR component drivers' : 'Key patient-specific drivers'}
+                    {isFtirReport ? 'FTIR region evidence' : 'Key patient-specific drivers'}
                   </CardTitle>
                   <CardDescription className="text-slate-600 dark:text-slate-400">
                     {isFtirReport
-                      ? 'FTIR spectra are compressed into PCA components before prediction. These values explain those model components, not raw wavenumber peaks.'
+                      ? 'PCA components are grouped back to their source wavenumber regions so the result reads as biochemical context, not a raw column list.'
                       : 'LIME contributions by absolute impact. Blue raises the model estimate; green lowers it.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isFtirReport && (
                     <div className="mb-4 rounded-2xl bg-sky-50/80 px-4 py-3 text-sm leading-6 text-sky-900 dark:bg-sky-950/35 dark:text-sky-100">
-                      Raw FTIR files contain thousands of wavenumber columns. ProstAPP reduces them into sector PCA features first, so a direct peak-by-peak explanation is not available without a PCA back-mapping layer.
+                      Raw urinary EV FTIR files contain thousands of wavenumber columns from 4000-400 cm-1. ProstAPP compresses each spectral region with PCA before prediction, so the clinically useful view is region-level: hydration/protein, lipid, Amide I/II protein structure, carbohydrate/nucleic-acid, phosphate, and lipid-skeleton patterns.
                     </div>
                   )}
                   {renderChart(
@@ -1282,7 +1458,26 @@ export function HistoryReport() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {selectedEntry.featureNotes?.length ? (
+                {isFtirReport && selectedFtirRegionSummaries.length ? (
+                  <div className="space-y-4">
+                    <div className="rounded-xl bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:bg-slate-950/60 dark:text-slate-300">
+                      Component-level PCA scores are compressed coordinates. They are grouped here by source FTIR region to avoid over-interpreting individual columns.
+                    </div>
+                    {selectedFtirRegionSummaries.map((region) => (
+                      <div key={`${region.range}-notes`} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0 dark:border-slate-800">
+                        <p className="font-medium text-slate-950 dark:text-slate-100">
+                          {region.range} cm-1 - {region.label}
+                        </p>
+                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {formatComponentList(region.components)}
+                          {formatNumberRange(region.pcaValues) ? ` | PCA scores ${formatNumberRange(region.pcaValues)}` : ''}
+                        </p>
+                        <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{region.meaning}.</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{region.interpretation}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : selectedEntry.featureNotes?.length ? (
                   <div className="space-y-4">
                     {selectedEntry.featureNotes.slice(0, 15).map((note, idx) => {
                       const featureKey = String(note.feature || '');

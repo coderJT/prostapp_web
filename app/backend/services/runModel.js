@@ -181,7 +181,7 @@ function buildDisplayNote(feature) {
         return {
             displayFeature: `FTIR PCA component ${(feature.feature || '').replace('Column_', '')}`,
             displayValue: `PCA score ${formatNumber(value, 4)}`,
-            meaning: `This is a PCA component derived from the FTIR spectrum. It reflects compressed spectral patterns, not a directly named clinical measurement.${direction}`,
+            meaning: `This is a PCA component derived from a defined FTIR wavenumber region. Interpret it with neighboring components as regional biochemical context, not as a standalone biomarker or clinical measurement.${direction}`,
         };
     }
 
