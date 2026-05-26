@@ -199,6 +199,12 @@ function formatListValue(value: unknown) {
   return formatModelNumber(value);
 }
 
+function formatLimeWeight(value: number | null) {
+  if (value === null) return 'not selected as a top local driver';
+  if (Math.abs(value) < 0.000001) return 'effectively 0';
+  return formatModelNumber(value);
+}
+
 function getRiskTone(level: string) {
   switch (level?.toLowerCase()) {
     case 'high':
@@ -1487,7 +1493,7 @@ export function HistoryReport() {
                               <p>PCA score: {item.pcaValue === null ? 'N/A' : formatModelNumber(item.pcaValue)}</p>
                               <p>
                                 LIME weight:{' '}
-                                {item.contributionScore === null ? 'not selected as a top local driver' : formatModelNumber(item.contributionScore)}
+                                {formatLimeWeight(item.contributionScore)}
                               </p>
                             </div>
                           ))}

@@ -44,6 +44,7 @@ function formatCompactNumber(value: number, maxDecimals = 3) {
 export function formatModelNumber(value: unknown) {
   const numeric = getNumericValue(value);
   if (numeric === null) return 'N/A';
+  if (numeric !== 0 && Math.abs(numeric) < 0.0001) return numeric.toExponential(2);
   if (Math.abs(numeric) >= 10) return formatCompactNumber(numeric, 2);
   if (Math.abs(numeric) >= 1) return formatCompactNumber(numeric, 3);
   return numeric.toLocaleString(undefined, {

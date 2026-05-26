@@ -41,6 +41,7 @@ INVASIVE_MODEL_PATH = ROOT_DIR / "ML" / "models" / "lgbm_clinical.joblib"
 FTIR_XGB_MODEL_PATH = ROOT_DIR / "ML" / "models" / "xgb_FTIR.joblib"
 FTIR_LGBM_MODEL_PATH = ROOT_DIR / "ML" / "models" / "lgbm_FTIR.joblib"
 PCA_OBJECTS_PATH = ROOT_DIR / "ML" / "models" / "sector_pca_objects_xgb_FTIR.joblib"
+FTIR_BACKGROUND_NPY = ROOT_DIR / "ML" / "data" / "X_processed_train.npy"
 INVASIVE_BACKGROUND_CSV = ROOT_DIR / "data" / "test" / "test_invasive_data.csv"
 
 # Column definitions (invasive)
@@ -331,6 +332,29 @@ def apply_sector_pca(raw_df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(all_components, columns=col_names, index=raw_df.index)
 
 
+@lru_cache(maxsize=1)
+def load_ftir_lime_background() -> Optional[pd.DataFrame]:
+    """Build an FTIR LIME background from the available training spectra."""
+    if not FTIR_BACKGROUND_NPY.exists():
+        return None
+
+    try:
+        raw = np.load(FTIR_BACKGROUND_NPY)
+        if raw.ndim != 2 or raw.shape[1] != 3601 or raw.shape[0] < 20:
+            log.warning("Ignoring FTIR LIME background with unexpected shape: %s", raw.shape)
+            return None
+        columns = [str(wavenumber) for wavenumber in range(4000, 399, -1)]
+        raw_df = pd.DataFrame(raw, columns=columns)
+        background = apply_sector_pca(raw_df)
+        background = background.apply(pd.to_numeric, errors="coerce").dropna()
+        if background.empty:
+            return None
+        return background
+    except Exception as exc:
+        log.warning("Failed to load FTIR LIME background: %s", exc)
+        return None
+
+
 # ---------- Model loading ----------
 def _load_from_mlflow(modality: str):
     """Try to load the model from the MLflow Model Registry."""
@@ -438,9 +462,12 @@ def _load_invasive_background(single_row_df: pd.DataFrame) -> pd.DataFrame:
 def _build_lime_background(modality: str, single_row_df: pd.DataFrame) -> pd.DataFrame:
     if modality == "invasive":
         return _load_invasive_background(single_row_df)
+    background_df = load_ftir_lime_background()
+    if background_df is not None and list(background_df.columns) == list(single_row_df.columns):
+        return background_df
     rng = np.random.default_rng(42)
     repeated = pd.DataFrame([single_row_df.iloc[0].values] * 200, columns=single_row_df.columns)
-    noise_scale = np.maximum(np.abs(repeated.values) * 0.05, 1e-6)
+    noise_scale = np.maximum(np.abs(repeated.values) * 0.25, 0.01)
     noisy = repeated.values + rng.normal(0.0, noise_scale)
     return pd.DataFrame(noisy, columns=single_row_df.columns)
 
