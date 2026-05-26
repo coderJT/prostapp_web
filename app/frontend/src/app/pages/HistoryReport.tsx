@@ -73,8 +73,11 @@ type FtirRegionSummary = {
   label: string;
   meaning: string;
   interpretation: string;
-  components: number[];
-  pcaValues: number[];
+  components: Array<{
+    component: number;
+    pcaValue: number | null;
+    contributionScore: number | null;
+  }>;
   contributionScores: number[];
 };
 
@@ -593,8 +596,8 @@ function topFeatureCards(entry: PredictionHistoryEntry | null) {
     });
 }
 
-function formatComponentList(components: number[]) {
-  const sorted = [...new Set(components)].sort((a, b) => a - b);
+function formatComponentList(components: Array<number | { component: number }>) {
+  const sorted = [...new Set(components.map((item) => (typeof item === 'number' ? item : item.component)))].sort((a, b) => a - b);
   if (!sorted.length) return 'No PCA components listed';
   if (sorted.length === 1) return `Component ${sorted[0]}`;
   const isContiguous = sorted.every((component, index) => index === 0 || component === sorted[index - 1] + 1);
@@ -602,9 +605,10 @@ function formatComponentList(components: number[]) {
   return `Components ${sorted.slice(0, 6).join(', ')}${sorted.length > 6 ? `, +${sorted.length - 6} more` : ''}`;
 }
 
-function formatNumberRange(values: number[]) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+function formatNumberRange(values: Array<number | null>) {
+  const numericValues = values.filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  if (!numericValues.length) return null;
+  const sorted = [...numericValues].sort((a, b) => a - b);
   if (sorted.length === 1) return formatModelNumber(sorted[0]);
   return `${formatModelNumber(sorted[0])} to ${formatModelNumber(sorted[sorted.length - 1])}`;
 }
@@ -624,13 +628,16 @@ function summarizeContributionScores(values: number[]) {
 
 function ftirRegionSummaries(entry: PredictionHistoryEntry | null) {
   if (!entry || entry.source !== 'ml-ftir') return [];
-  const sourceItems = [...(entry.topLimeFeatures || []), ...(entry.featureNotes || [])];
+  const sourceItems = entry.featureNotes?.length ? entry.featureNotes : entry.topLimeFeatures || [];
   const summaries = new Map<string, FtirRegionSummary>();
+  const seenComponents = new Set<number>();
 
   sourceItems.forEach((item) => {
     const detail = normalizeFeatureDetail(item);
     const component = pcaComponentNumber(detail?.featureKey);
     if (component === null || !detail) return;
+    if (seenComponents.has(component)) return;
+    seenComponents.add(component);
     const region = ftirRegions.find((candidate) => component >= candidate.componentStart && component <= candidate.componentEnd);
     if (!region) return;
     const existing = summaries.get(region.range) || {
@@ -639,14 +646,13 @@ function ftirRegionSummaries(entry: PredictionHistoryEntry | null) {
       meaning: region.meaning,
       interpretation: region.interpretation,
       components: [],
-      pcaValues: [],
       contributionScores: [],
     };
 
-    existing.components.push(component);
     const pcaValue = getNumericValue(detail.patientValue);
-    if (pcaValue !== null) existing.pcaValues.push(pcaValue);
-    if (hasContributionScore(item)) existing.contributionScores.push(detail.score);
+    const contributionScore = hasContributionScore(item) ? detail.score : null;
+    existing.components.push({ component, pcaValue, contributionScore });
+    if (contributionScore !== null) existing.contributionScores.push(contributionScore);
     summaries.set(region.range, existing);
   });
 
@@ -1252,7 +1258,7 @@ export function HistoryReport() {
                                 </p>
                                 <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                                   {formatComponentList(region.components)}
-                                  {formatNumberRange(region.pcaValues) ? ` | PCA scores ${formatNumberRange(region.pcaValues)}` : ''}
+                                  {formatNumberRange(region.components.map((item) => item.pcaValue)) ? ` | PCA scores ${formatNumberRange(region.components.map((item) => item.pcaValue))}` : ''}
                                 </p>
                               </div>
                               <Badge variant="outline" className="w-fit rounded-full border-emerald-200 text-emerald-700 dark:border-emerald-800 dark:text-emerald-200">
@@ -1470,10 +1476,22 @@ export function HistoryReport() {
                         </p>
                         <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           {formatComponentList(region.components)}
-                          {formatNumberRange(region.pcaValues) ? ` | PCA scores ${formatNumberRange(region.pcaValues)}` : ''}
+                          {formatNumberRange(region.components.map((item) => item.pcaValue)) ? ` | PCA scores ${formatNumberRange(region.components.map((item) => item.pcaValue))}` : ''}
                         </p>
                         <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{region.meaning}.</p>
                         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">{region.interpretation}</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {region.components.map((item) => (
+                            <div key={`${region.range}-${item.component}`} className="rounded-lg bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600 dark:bg-slate-950/60 dark:text-slate-300">
+                              <p className="font-semibold text-slate-800 dark:text-slate-100">Component {item.component}</p>
+                              <p>PCA score: {item.pcaValue === null ? 'N/A' : formatModelNumber(item.pcaValue)}</p>
+                              <p>
+                                LIME weight:{' '}
+                                {item.contributionScore === null ? 'not selected as a top local driver' : formatModelNumber(item.contributionScore)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     ))}
                   </div>

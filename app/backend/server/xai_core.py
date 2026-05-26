@@ -207,6 +207,27 @@ def _clinical_feature_note(feature: str, value, weight: Optional[float] = None) 
         "meaning": f"Patient-specific LIME contribution.{direction}",
     }
 
+
+def _component_feature_notes(df: pd.DataFrame, lime_features: List[Dict]) -> List[Dict]:
+    """Return one display note per PCA component, with LIME weight when available."""
+    lime_by_feature = {item["feature"]: item for item in lime_features}
+    notes = []
+    for feature in df.columns:
+        if not str(feature).startswith("Column_"):
+            continue
+        value = float(df.iloc[0][feature])
+        lime_item = lime_by_feature.get(feature)
+        weight = float(lime_item["weight"]) if lime_item else None
+        note = {
+            "feature": feature,
+            "value": value,
+            **_clinical_feature_note(str(feature), value, weight),
+        }
+        if weight is not None:
+            note["weight"] = weight
+        notes.append(note)
+    return notes
+
 # Sector-wise PCA definitions for FTIR wavenumber data
 # Each sector slices wavenumber columns from high (inclusive) to low (exclusive)
 SECTOR_RANGES = OrderedDict([
@@ -624,20 +645,25 @@ def predict_with_lime(modality: str, csv_text: str, model_type: str = "xgb", lan
     # Audit log to MLflow
     _log_prediction_to_mlflow(modality, df, predicted_class, probability, latency_ms)
 
+    lime_feature_notes = [
+        {
+            "feature": item["feature"],
+            "weight": item["weight"],
+            "value": item["feature_value"],
+            **_clinical_feature_note(item["feature"], item["feature_value"], item["weight"]),
+        }
+        for item in lime_features[:8]
+    ]
+
+    if modality == "non-invasive":
+        lime_feature_notes = _component_feature_notes(df, lime_features)
+
     result = {
         "success": True,
         "prediction": predicted_class,
         "probability": probability,
         "lime": {"top_features": lime_features},
-        "lime_feature_notes": [
-            {
-                "feature": item["feature"],
-                "weight": item["weight"],
-                "value": item["feature_value"],
-                **_clinical_feature_note(item["feature"], item["feature_value"], item["weight"]),
-            }
-            for item in lime_features[:8]
-        ],
+        "lime_feature_notes": lime_feature_notes,
         "latency_ms": round(latency_ms, 1),
     }
 

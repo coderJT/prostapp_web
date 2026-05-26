@@ -119,6 +119,15 @@ function formatFeaturePairsForLLM(lime, shap) {
     };
 }
 
+function formatFeatureNotesForLLM(notes) {
+    return (notes || []).slice(0, 12).map((item) => ({
+        feature: item.feature,
+        value: item.value ?? item.feature_value,
+        weight: item.weight,
+        meaning: item.meaning,
+    }));
+}
+
 async function summarizeLimePrediction({ modality, predictionResult, language = 'en' }) {
     if (!hasLlmConfig()) {
         return null;
@@ -141,7 +150,7 @@ async function summarizeLimePrediction({ modality, predictionResult, language = 
         `Predicted probability (class 1): ${predictionResult?.probability}`,
         `Top LIME features with values: ${JSON.stringify(formatLimeFeatures(predictionResult?.lime?.top_features))}`,
         `Top SHAP (for reference if available): ${JSON.stringify(formatShapFeatures(predictionResult?.shap?.global_importance || []))}`,
-        `Raw feature notes: ${JSON.stringify(predictionResult?.lime_feature_notes || [])}`,
+        `Raw feature notes: ${JSON.stringify(formatFeatureNotesForLLM(predictionResult?.lime_feature_notes || []))}`,
     ].join('\n');
 
     return callLlm(prompt);

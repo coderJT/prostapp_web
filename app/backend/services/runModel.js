@@ -191,11 +191,49 @@ function buildDisplayNote(feature) {
     };
 }
 
+function parseSingleRowCsv(csvText) {
+    if (typeof csvText !== 'string' || !csvText.trim()) return [];
+    const lines = csvText.trim().split(/\r?\n/);
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(',').map((value) => value.trim());
+    const values = lines[1].split(',').map((value) => value.trim());
+    return headers.map((feature, index) => ({
+        feature,
+        feature_value: values[index],
+    }));
+}
+
+function buildPcaComponentNotes(result, lime) {
+    const limeByFeature = new Map(lime.map((item) => [item.feature, item]));
+    return parseSingleRowCsv(result?.pca_csv)
+        .filter((item) => /^Column_\d+$/.test(item.feature || ''))
+        .map((item) => {
+            const limeItem = limeByFeature.get(item.feature);
+            const feature = {
+                ...item,
+                weight: limeItem?.weight,
+            };
+            const displayNote = buildDisplayNote(feature);
+            const note = {
+                feature: item.feature,
+                value: item.feature_value,
+                displayFeature: displayNote.displayFeature,
+                displayValue: displayNote.displayValue,
+                meaning: displayNote.meaning,
+            };
+            if (typeof limeItem?.weight !== 'undefined') {
+                note.weight = limeItem.weight;
+            }
+            return note;
+        });
+}
+
 // helper to attach lime/shap results for richer LLM prompts and UI
 exports.attachFeatureNotes = function(result) {
     const lime = result?.lime?.top_features || [];
     const shap = result?.global_importance || result?.shap?.global_importance || [];
-    result.lime_feature_notes = lime.slice(0, 8).map((f) => {
+    const pcaComponentNotes = buildPcaComponentNotes(result, lime);
+    result.lime_feature_notes = pcaComponentNotes.length ? pcaComponentNotes : lime.slice(0, 8).map((f) => {
         const displayNote = buildDisplayNote(f);
         return {
             feature: f.feature,
