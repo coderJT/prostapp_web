@@ -4,6 +4,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { RadioGroup, RadioGroupItem } from '../components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Progress } from '../components/ui/progress';
@@ -18,6 +19,7 @@ import {
   HeartPulse,
   Loader,
   RotateCcw,
+  SlidersHorizontal,
   TrendingUp,
   Waves,
 } from 'lucide-react';
@@ -522,6 +524,31 @@ export function RiskAssessment() {
     await calculateRisk();
   };
 
+  const getCsvRows = (text: string) =>
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => line.split(',').map((cell) => cell.trim()));
+
+  const detectCsvType = (rows: string[][]): 'invasive' | 'ftir' | null => {
+    const header = rows[0] || [];
+    const sameInvasiveHeaders =
+      header.length === invasiveExpectedHeaders.length &&
+      header.every((name, idx) => name === invasiveExpectedHeaders[idx]);
+
+    if (sameInvasiveHeaders) {
+      return 'invasive';
+    }
+
+    const wavenumberCount = header.filter((cell) => {
+      const wavenumber = Number(cell);
+      return Number.isFinite(wavenumber) && wavenumber >= 400 && wavenumber <= 4000;
+    }).length;
+
+    return wavenumberCount >= ftirMinWavenumberCount ? 'ftir' : null;
+  };
+
   const handleCsvUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -529,28 +556,51 @@ export function RiskAssessment() {
     const file = files[0];
     if (!file.name.endsWith('.csv')) {
       toast.error('Please upload a CSV file');
+      event.target.value = '';
       return;
     }
 
-    setCsvFile(file);
+    try {
+      const rows = getCsvRows(await file.text());
+      if (rows.length < 2) {
+        toast.error('CSV must include a header row and at least one data row.');
+        event.target.value = '';
+        return;
+      }
+
+      const detectedType = detectCsvType(rows);
+      if (!detectedType) {
+        toast.error('Could not detect file type. Please upload a valid Invasive/PSA or raw FTIR CSV file.');
+        event.target.value = '';
+        return;
+      }
+
+      setCsvFile(file);
+      setCsvType(detectedType);
+      setFtirSpectrumData([]);
+      toast.success(
+        detectedType === 'ftir'
+          ? 'Detected FTIR/non-invasive CSV file.'
+          : 'Detected PSA/invasive CSV file.',
+      );
+    } catch {
+      toast.error('Could not read the selected CSV file.');
+      event.target.value = '';
+    }
   };
 
   const validateCsvByType = async (file: File, type: 'invasive' | 'ftir') => {
-    const text = await file.text();
-    const lines = text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+    const rows = getCsvRows(await file.text());
 
-    if (lines.length < 2) {
+    if (rows.length < 2) {
       return {
         valid: false,
         message: 'CSV must include a header row and at least one data row.',
       };
     }
 
-    const header = lines[0].split(',').map((cell) => cell.trim());
-    const firstDataRow = lines[1].split(',').map((cell) => cell.trim());
+    const header = rows[0];
+    const firstDataRow = rows[1];
 
     if (type === 'invasive') {
       const sameLength = header.length === invasiveExpectedHeaders.length;
@@ -1269,7 +1319,10 @@ export function RiskAssessment() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCsvFile(null)}
+                    onClick={() => {
+                      setCsvFile(null);
+                      setCsvType(null);
+                    }}
                   >
                     ✕
                   </Button>
@@ -1279,39 +1332,67 @@ export function RiskAssessment() {
 
             {csvFile && (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>FTIR model type</Label>
-                  <Select value={ftirModelType} onValueChange={(v) => setFtirModelType(v as 'xgb' | 'lgbm')}>
-                    <SelectTrigger className={inputClass}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="xgb">XGBoost (XGB)</SelectItem>
-                      <SelectItem value="lgbm">LightGBM (LGBM)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Select which model to use for FTIR file-upload prediction</p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Button
-                    onClick={() => handleCsvTypeSelect('invasive')}
-                    disabled={loading}
-                    variant="outline"
-                    className={invasivePredictButtonClass}
-                  >
-                    {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
-                    Predict (PSA/Invasive)
-                  </Button>
-                  <Button
-                    onClick={() => handleCsvTypeSelect('ftir')}
-                    disabled={loading}
-                    variant="outline"
-                    className={ftirPredictButtonClass}
-                  >
-                    {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
-                    Predict (FTIR/Non-Invasive)
-                  </Button>
+                <div className={csvType === 'ftir' ? 'grid gap-3 sm:grid-cols-[1fr_auto]' : 'grid gap-3'}>
+                  {csvType === 'invasive' && (
+                    <Button
+                      onClick={() => handleCsvTypeSelect('invasive')}
+                      disabled={loading}
+                      variant="outline"
+                      className={invasivePredictButtonClass}
+                    >
+                      {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Predict (PSA/Invasive)
+                    </Button>
+                  )}
+                  {csvType === 'ftir' && (
+                    <>
+                      <Button
+                        onClick={() => handleCsvTypeSelect('ftir')}
+                        disabled={loading}
+                        variant="outline"
+                        className={ftirPredictButtonClass}
+                      >
+                        {loading ? <Loader className="h-4 w-4 mr-2 animate-spin" /> : null}
+                        Predict (FTIR/Non-Invasive)
+                      </Button>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={`${outlineButtonClass} justify-center px-4 sm:w-14`}
+                            aria-label="Select model"
+                            title="Select model"
+                          >
+                            <SlidersHorizontal className="h-4 w-4 sm:mr-0" />
+                            <span className="ml-2 sm:sr-only">Select model</span>
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-80 rounded-2xl border-slate-200 bg-white p-4 shadow-xl dark:border-slate-800 dark:bg-slate-950">
+                          <div className="space-y-3">
+                            <div>
+                              <Label>FTIR model type</Label>
+                              <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Used when running FTIR/non-invasive prediction.</p>
+                            </div>
+                            <Select value={ftirModelType} onValueChange={(v) => setFtirModelType(v as 'xgb' | 'lgbm')}>
+                              <SelectTrigger className={inputClass}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="xgb">XGBoost (XGB)</SelectItem>
+                                <SelectItem value="lgbm">LightGBM (LGBM)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </>
+                  )}
+                  {!csvType && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                      File type could not be detected. Please choose another CSV file.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1320,6 +1401,7 @@ export function RiskAssessment() {
               onClick={() => {
                 setAssessmentMode('form');
                 setCsvFile(null);
+                setCsvType(null);
               }}
               variant="outline"
               className={`${outlineButtonClass} w-full`}
