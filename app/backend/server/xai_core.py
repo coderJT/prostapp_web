@@ -239,19 +239,28 @@ PROSTATE_DOMAIN_GUIDANCE = "\n".join([
     "- Height and weight rarely have direct clinical meaning for prostate biopsy decisions; if they appear important, frame them as model-learned associations needing clinical review.",
     "- For invasive-modality predictions, class 1 means the model leans toward invasive modality being necessary or higher modeled need; class 0 means lower modeled need.",
     "- For FTIR/non-invasive predictions, spectral/PCA components may reflect biochemical patterns but are not directly interpretable as individual clinical findings unless mapped back to wavenumber bands.",
+    "- The FTIR workflow uses urinary extracellular vesicles (uEVs). EV cargo can differ between normal and cancer-derived cells, and FTIR measures mid-infrared absorbance patterns from biochemical bonds rather than PSA-like single lab values.",
+    "- For FTIR spectra, explain common regions in plain language: 3500-3000 cm-1 proteins/water hydration, 3000-2800 cm-1 lipid C-H stretching, 1740-1720 cm-1 lipid carbonyl, 1700-1470 cm-1 protein Amide I/II, 1470-1200 cm-1 protein/lipid deformation and Amide III, 1200-1000 and 1000-700 cm-1 carbohydrates/nucleic acids/phosphate, 700-400 cm-1 phosphates/lipid skeletal vibrations.",
+    "- If the FTIR model reports PCA components, say that the model compressed thousands of wavenumber readings into components, so the safest explanation is 'spectral pattern consistent with biochemical differences' unless a component-to-wavenumber map is available.",
     "- Positive LIME/SHAP direction pushes toward class 1; negative direction pushes toward class 0. Magnitude reflects model influence, not clinical severity.",
 ])
 
 OUTPUT_RULES = "\n".join([
     "Return plain text with these sections:",
-    "Summary",
-    "Write 3-4 sentences including predicted probability/class when available, top drivers, clinical interpretation, and uncertainty.",
+    "Patient takeaway",
+    "Write 2-3 short sentences a patient can understand. Include probability/class, whether this is lower/intermediate/higher modeled concern, and what the result does and does not mean.",
     "",
-    "Feature interpretation",
-    "Use up to 6 bullets prefixed with '- '. For each bullet, write: feature label, patient value if available, model direction/weight, clinical interpretation, and limitation/caution when needed.",
+    "What influenced the result",
+    "Use up to 5 bullets prefixed with '- '. For each bullet, write: feature label, patient value if available, model direction/weight, plain clinical meaning, and caution if the feature is demographic, comorbidity, or PCA/spectral.",
+    "",
+    "FTIR interpretation",
+    "If modality is FTIR/non-invasive, explain urinary EV FTIR in 2-3 sentences: the model looks at spectral patterns related to proteins, lipids, carbohydrates/nucleic acids, phosphates, and hydration; PCA components are compressed spectral patterns, not named diagnoses. If modality is invasive/clinical, write 'Not applicable for this clinical-data report.'",
+    "",
+    "Suggested next context",
+    "Use 2 bullets prefixed with '- '. Mention the specific clinical context that would help interpretation, such as PSA trend, DRE, MRI, biopsy history, urinary symptoms/infection, prostate volume, family history, and clinician review.",
     "",
     "Clinical caution",
-    "Write 1 short sentence that this is decision support and should be interpreted with PSA history, symptoms, DRE, MRI/biopsy history, comorbidities, and clinician judgement.",
+    "Write 1 short sentence that this is decision support and not a diagnosis.",
 ])
 
 LANGUAGE_INSTRUCTIONS = {
@@ -514,6 +523,7 @@ def summarize_lime(modality: str, prediction: Dict, language: str = "en") -> Opt
         "- If probability is near the decision boundary, explicitly say the model confidence is limited.",
         "- Avoid vague phrases unless you explain what each supplied value means clinically and what it does not prove.",
         "- Never say a race variable means the model is biased unless a fairness/bias audit is provided.",
+        "- For FTIR, do not call PCA components biomarkers. Explain them as compressed spectrum patterns and connect only at broad region/biomolecule level when supported.",
         "",
         f"Modality: {modality}",
         f"Predicted class: {prediction.get('prediction')}",

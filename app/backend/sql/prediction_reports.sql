@@ -23,8 +23,12 @@ create table if not exists public.prediction_reports (
 
     top_lime_features jsonb not null default '[]'::jsonb,
     top_shap_features jsonb not null default '[]'::jsonb,
-    feature_notes jsonb not null default '[]'::jsonb
+    feature_notes jsonb not null default '[]'::jsonb,
+    ftir_spectrum_data jsonb not null default '[]'::jsonb
 );
+
+alter table public.prediction_reports
+    add column if not exists ftir_spectrum_data jsonb not null default '[]'::jsonb;
 
 create index if not exists prediction_reports_user_email_idx
     on public.prediction_reports (user_email);
@@ -70,3 +74,6 @@ comment on column public.prediction_reports.top_shap_features is
 
 comment on column public.prediction_reports.feature_notes is
 'JSON array of plain-language feature interpretation notes used in the report view.';
+
+comment on column public.prediction_reports.ftir_spectrum_data is
+'Downsampled raw FTIR spectrum points used to render the saved non-invasive report graph.';

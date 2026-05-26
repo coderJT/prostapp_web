@@ -35,11 +35,13 @@ export interface PredictionHistoryEntry {
   topLimeFeatures?: unknown[];
   topShapFeatures?: unknown[];
   featureNotes?: FeatureNote[];
+  ftirSpectrumData?: Array<{ wavenumber: number; absorbance: number }>;
 }
 
 type HistoryByUser = Record<string, PredictionHistoryEntry[]>;
 
 const STORAGE_KEY = 'predictionHistoryByUser';
+const FTIR_SPECTRA_KEY = 'predictionHistoryFtirSpectraByUser';
 const MAX_HISTORY_ITEMS = 50;
 function getCurrentUserKey() {
   const user = getStoredUser();
@@ -79,6 +81,52 @@ function setPredictionHistoryForCurrentUser(items: PredictionHistoryEntry[]) {
   writeHistoryStore(store);
 }
 
+type SpectrumStore = Record<string, Record<string, Array<{ wavenumber: number; absorbance: number }>>>;
+
+function readSpectrumStore(): SpectrumStore {
+  try {
+    const raw = localStorage.getItem(FTIR_SPECTRA_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSpectrumStore(value: SpectrumStore) {
+  localStorage.setItem(FTIR_SPECTRA_KEY, JSON.stringify(value));
+}
+
+function spectrumFallbackKey(entry: PredictionHistoryEntry) {
+  return [
+    entry.source,
+    entry.csvFileName || '',
+    entry.riskScore,
+    entry.predictionValue ?? '',
+    entry.predictionClass ?? '',
+  ].join('|');
+}
+
+function saveFtirSpectrumForEntry(entry: PredictionHistoryEntry) {
+  if (entry.source !== 'ml-ftir' || !entry.ftirSpectrumData?.length) return;
+  const store = readSpectrumStore();
+  const key = getCurrentUserKey();
+  store[key] = store[key] || {};
+  store[key][entry.id] = entry.ftirSpectrumData;
+  store[key][spectrumFallbackKey(entry)] = entry.ftirSpectrumData;
+  writeSpectrumStore(store);
+}
+
+function hydrateFtirSpectra(items: PredictionHistoryEntry[]) {
+  const spectra = readSpectrumStore()[getCurrentUserKey()] || {};
+  return items.map((entry) => {
+    if (entry.ftirSpectrumData?.length || entry.source !== 'ml-ftir') return entry;
+    const ftirSpectrumData = spectra[entry.id] || spectra[spectrumFallbackKey(entry)];
+    return ftirSpectrumData?.length ? { ...entry, ftirSpectrumData } : entry;
+  });
+}
+
 function sortEntries(items: PredictionHistoryEntry[]) {
   return [...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
@@ -88,7 +136,7 @@ export function getPredictionHistoryForCurrentUser(): PredictionHistoryEntry[] {
   const key = getCurrentUserKey();
   const items = store[key];
 
-  return Array.isArray(items) ? sortEntries(items) : [];
+  return Array.isArray(items) ? hydrateFtirSpectra(sortEntries(items)) : [];
 }
 
 async function fetchReportHistoryFromApi() {
@@ -179,8 +227,9 @@ export async function loadPredictionHistoryForCurrentUser(): Promise<PredictionH
   try {
     const reports = await fetchReportHistoryFromApi();
     if (reports) {
-      setPredictionHistoryForCurrentUser(reports);
-      return reports;
+      const hydratedReports = hydrateFtirSpectra(reports);
+      setPredictionHistoryForCurrentUser(hydratedReports);
+      return hydratedReports;
     }
   } catch (error) {
     console.error('Failed to load report history from API:', error);
@@ -207,14 +256,20 @@ export function savePredictionHistoryEntry(
     createdAt: new Date().toISOString(),
   };
 
+  saveFtirSpectrumForEntry(entry);
+
   store[key] = sortEntries([entry, ...existing]).slice(0, MAX_HISTORY_ITEMS);
   writeHistoryStore(store);
 
   persistReportToApi(entry)
     .then((remoteEntry) => {
       if (!remoteEntry) return;
+      const mergedRemoteEntry = entry.ftirSpectrumData?.length && !remoteEntry.ftirSpectrumData?.length
+        ? { ...remoteEntry, ftirSpectrumData: entry.ftirSpectrumData }
+        : remoteEntry;
+      saveFtirSpectrumForEntry(mergedRemoteEntry);
       const current = getPredictionHistoryForCurrentUser().filter((item) => item.id !== entry.id);
-      setPredictionHistoryForCurrentUser(sortEntries([remoteEntry, ...current]));
+      setPredictionHistoryForCurrentUser(sortEntries([mergedRemoteEntry, ...current]));
     })
     .catch((error) => {
       console.error('Failed to persist report history to API:', error);

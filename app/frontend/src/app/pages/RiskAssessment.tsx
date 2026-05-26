@@ -690,6 +690,7 @@ export function RiskAssessment() {
     setCsvType(type);
     setLoading(true);
     let taskId: string | null = null;
+    let parsedFtirSpectrumData: {wavenumber: number; absorbance: number}[] = [];
     try {
       const validation = await validateCsvByType(csvFile, type);
       if (!validation.valid) {
@@ -715,10 +716,11 @@ export function RiskAssessment() {
             spectrum.sort((a, b) => a.wavenumber - b.wavenumber);
             if (spectrum.length > 500) {
               const step = Math.ceil(spectrum.length / 500);
-              setFtirSpectrumData(spectrum.filter((_, i) => i % step === 0));
+              parsedFtirSpectrumData = spectrum.filter((_, i) => i % step === 0);
             } else {
-              setFtirSpectrumData(spectrum);
+              parsedFtirSpectrumData = spectrum;
             }
+            setFtirSpectrumData(parsedFtirSpectrumData);
           }
         } catch { /* spectrum parsing is best-effort */ }
       }
@@ -805,7 +807,7 @@ export function RiskAssessment() {
           topLimeFeatures: data?.lime?.top_features || [],
           topShapFeatures: shapData?.global_importance || data?.shap?.global_importance || [],
           featureNotes: data?.lime_feature_notes || [],
-          ftirSpectrumData: type === 'ftir' ? ftirSpectrumData : [],
+          ftirSpectrumData: type === 'ftir' ? parsedFtirSpectrumData : [],
         };
 
         setResult(newResult);
@@ -823,6 +825,7 @@ export function RiskAssessment() {
           topLimeFeatures: data?.lime?.top_features || [],
           topShapFeatures: shapData?.global_importance || data?.shap?.global_importance || [],
           featureNotes: data?.lime_feature_notes || [],
+          ftirSpectrumData: type === 'ftir' ? parsedFtirSpectrumData : [],
         }));
 
         // Save to localStorage for Results page

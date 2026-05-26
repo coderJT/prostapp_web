@@ -20,6 +20,7 @@ function mapRowToHistoryEntry(row) {
         topLimeFeatures: Array.isArray(row.top_lime_features) ? row.top_lime_features : [],
         topShapFeatures: Array.isArray(row.top_shap_features) ? row.top_shap_features : [],
         featureNotes: Array.isArray(row.feature_notes) ? row.feature_notes : [],
+        ftirSpectrumData: Array.isArray(row.ftir_spectrum_data) ? row.ftir_spectrum_data : [],
     };
 }
 
@@ -117,13 +118,25 @@ router.post('/reports', async (req, res) => {
             top_lime_features: Array.isArray(payload.topLimeFeatures) ? payload.topLimeFeatures : [],
             top_shap_features: Array.isArray(payload.topShapFeatures) ? payload.topShapFeatures : [],
             feature_notes: Array.isArray(payload.featureNotes) ? payload.featureNotes : [],
+            ftir_spectrum_data: Array.isArray(payload.ftirSpectrumData) ? payload.ftirSpectrumData : [],
         };
 
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('prediction_reports')
             .insert(row)
             .select('*')
             .single();
+
+        if (error && /ftir_spectrum_data|schema cache/i.test(error.message || '')) {
+            const { ftir_spectrum_data, ...rowWithoutSpectrum } = row;
+            const retry = await supabase
+                .from('prediction_reports')
+                .insert(rowWithoutSpectrum)
+                .select('*')
+                .single();
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) {
             throw error;

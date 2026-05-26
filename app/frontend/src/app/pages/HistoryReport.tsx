@@ -2,17 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
   AlertCircle,
+  Activity,
   BarChart3,
+  CalendarDays,
   CheckCircle2,
+  ChevronRight,
   ClipboardList,
   FileText,
+  FlaskConical,
+  Gauge,
   Info,
   PanelLeftClose,
   PanelLeftOpen,
+  Search,
   Stethoscope,
   Trash2,
+  Waves,
 } from 'lucide-react';
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
@@ -25,6 +34,7 @@ import {
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
 import {
   clearPredictionHistoryForCurrentUser,
   getPredictionHistoryForCurrentUser,
@@ -47,6 +57,8 @@ type FeatureChartRow = {
   direction: 'raises' | 'lowers';
 };
 
+type ReportSourceFilter = 'all' | PredictionHistoryEntry['source'];
+
 const shellClass =
   'rounded-[2rem] border border-white/80 bg-white/90 shadow-xl shadow-slate-200/70 dark:border-slate-800 dark:bg-slate-900/90 dark:shadow-black/25';
 const cardClass =
@@ -54,10 +66,48 @@ const cardClass =
 const mutedPanelClass =
   'rounded-3xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-950/60';
 
+const ftirRegions = [
+  { range: '3500-3000', label: 'Proteins and hydration', meaning: 'protein N-H and water/O-H signals' },
+  { range: '3000-2800', label: 'Lipids', meaning: 'lipid C-H stretching' },
+  { range: '1740-1720', label: 'Lipid carbonyl', meaning: 'lipid C=O stretching' },
+  { range: '1700-1470', label: 'Protein Amide I/II', meaning: 'protein secondary-structure signals' },
+  { range: '1470-1200', label: 'Proteins and lipids', meaning: 'CH2/CH3 deformation and Amide III' },
+  { range: '1200-1000', label: 'Carbohydrates and nucleic acids', meaning: 'C-O/C-C and phosphate-related signals' },
+  { range: '1000-700', label: 'Nucleic acids and sugars', meaning: 'DNA/RNA phosphate and saccharide vibrations' },
+  { range: '700-400', label: 'Phosphates and lipid skeleton', meaning: 'phosphate bending and lipid skeletal vibrations' },
+];
+
 function sourceLabel(source: PredictionHistoryEntry['source']) {
   if (source === 'form') return 'Manual assessment';
   if (source === 'ml-invasive') return 'PSA / invasive model';
   return 'FTIR / non-invasive model';
+}
+
+function sourceMeta(source: PredictionHistoryEntry['source']) {
+  if (source === 'form') {
+    return {
+      label: 'Manual',
+      description: 'Guided entry',
+      icon: ClipboardList,
+      className: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
+    };
+  }
+
+  if (source === 'ml-invasive') {
+    return {
+      label: 'PSA',
+      description: 'Invasive model',
+      icon: Gauge,
+      className: 'bg-sky-50 text-sky-700 dark:bg-sky-950/50 dark:text-sky-200',
+    };
+  }
+
+  return {
+    label: 'FTIR',
+    description: 'Spectral model',
+    icon: FlaskConical,
+    className: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200',
+  };
 }
 
 function getNumericValue(value: unknown) {
@@ -166,6 +216,125 @@ function toPercent(value: number | null | undefined) {
   return typeof value === 'number' ? `${(value * 100).toFixed(2)}%` : 'Not available';
 }
 
+function riskPlainLanguage(entry: PredictionHistoryEntry | null) {
+  if (!entry) return '';
+  const probability = toPercent(entry.predictionValue);
+  if (entry.riskLevel === 'High') {
+    return `This result is in the higher modeled concern range (${probability}). It does not diagnose cancer, but it is a signal that the report should be reviewed carefully with the patient’s PSA history, symptoms, imaging, and previous biopsy context.`;
+  }
+  if (entry.riskLevel === 'Moderate') {
+    return `This result is in an intermediate modeled range (${probability}). It is not a diagnosis; it means the model found enough signal that the result should be interpreted with the rest of the clinical picture.`;
+  }
+  return `This result is in the lower modeled range (${probability}). It is reassuring as a model signal, but it does not replace clinical follow-up when symptoms, PSA trend, examination, MRI, or family history are concerning.`;
+}
+
+function modalityPlainLanguage(entry: PredictionHistoryEntry | null) {
+  if (!entry) return '';
+  if (entry.source === 'ml-ftir') {
+    return 'This FTIR result comes from a urinary extracellular-vesicle spectrum. The model is reading a biochemical fingerprint across many infrared wavenumbers, then compressing it into PCA components before classification.';
+  }
+  if (entry.source === 'ml-invasive') {
+    return 'This PSA/invasive result comes from clinical and demographic fields. Treat important features as decision-support signals, not as standalone reasons for biopsy or treatment.';
+  }
+  return 'This manual assessment is a simplified risk record. It is useful for tracking, but it does not include the model explanation depth available from CSV-based reports.';
+}
+
+function explanationSections(text?: string | null) {
+  if (!text) return {};
+  const sections: Record<string, string[]> = {};
+  let current = 'Details';
+  text.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+    const heading = trimmed.replace(/:$/, '');
+    if (/^(summary|patient takeaway|feature interpretation|what influenced the result|ftir interpretation|suggested next context|clinical caution|details)$/i.test(heading)) {
+      current = heading;
+      sections[current] = sections[current] || [];
+      return;
+    }
+    sections[current] = sections[current] || [];
+    sections[current].push(trimmed.replace(/^[-•]\s*/, ''));
+  });
+  return sections;
+}
+
+function getSectionText(sections: Record<string, string[]>, names: string[]) {
+  const key = Object.keys(sections).find((section) => names.some((name) => section.toLowerCase() === name.toLowerCase()));
+  return key ? sections[key] : [];
+}
+
+function featureDirectionLabel(value: unknown) {
+  const numeric = getNumericValue(value);
+  if (numeric === null) return 'influenced the model';
+  return numeric >= 0 ? 'raised the modeled estimate' : 'lowered the modeled estimate';
+}
+
+function pcaComponentNumber(value: unknown) {
+  const match = String(value || '').match(/Column_(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function inferFtirRegionFromComponent(feature: unknown) {
+  const component = pcaComponentNumber(feature);
+  if (component === null) return null;
+  const region = ftirRegions[Math.min(ftirRegions.length - 1, Math.floor(component / 13))];
+  return region ? `${region.range} cm-1, ${region.label.toLowerCase()}` : null;
+}
+
+function topFeatureCards(entry: PredictionHistoryEntry | null) {
+  if (!entry?.topLimeFeatures?.length) return [];
+  return entry.topLimeFeatures
+    .slice(0, 5)
+    .map(normalizeFeature)
+    .filter((feature): feature is { feature: unknown; score: number } => Boolean(feature))
+    .map(({ feature, score }) => ({
+      label: formatFeatureName(feature),
+      direction: featureDirectionLabel(score),
+      score,
+      ftirRegion: entry.source === 'ml-ftir' ? inferFtirRegionFromComponent(feature) : null,
+    }));
+}
+
+function formatReportDay(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function formatReportTime(value: string) {
+  return new Date(value).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function reportMatchesQuery(entry: PredictionHistoryEntry, query: string) {
+  if (!query.trim()) return true;
+
+  const normalizedQuery = query.trim().toLowerCase();
+  return [
+    sourceLabel(entry.source),
+    sourceMeta(entry.source).label,
+    entry.riskLevel,
+    entry.csvFileName || '',
+    entry.predictionClass ?? '',
+    entry.id,
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
 export function HistoryReport() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -174,6 +343,8 @@ export function HistoryReport() {
   const reportId = searchParams.get('report');
   const [selectedId, setSelectedId] = useState<string | null>(reportId || entries[0]?.id || null);
   const [isRailOpen, setIsRailOpen] = useState(true);
+  const [reportQuery, setReportQuery] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<ReportSourceFilter>('all');
 
   useEffect(() => {
     loadPredictionHistoryForCurrentUser()
@@ -223,6 +394,41 @@ export function HistoryReport() {
   const isFtirReport = selectedEntry?.source === 'ml-ftir';
   const limeChartData = useMemo(() => buildChartData(selectedEntry?.topLimeFeatures), [selectedEntry?.topLimeFeatures]);
   const shapChartData = useMemo(() => buildChartData(selectedEntry?.topShapFeatures), [selectedEntry?.topShapFeatures]);
+  const limeSections = useMemo(() => explanationSections(selectedEntry?.limeSummary), [selectedEntry?.limeSummary]);
+  const shapSections = useMemo(() => explanationSections(selectedEntry?.shapSummary), [selectedEntry?.shapSummary]);
+  const selectedFeatureCards = useMemo(() => topFeatureCards(selectedEntry), [selectedEntry]);
+  const ftirSpectrumData = selectedEntry?.ftirSpectrumData || [];
+  const sourceCounts = useMemo(
+    () => ({
+      all: entries.length,
+      form: entries.filter((entry) => entry.source === 'form').length,
+      'ml-invasive': entries.filter((entry) => entry.source === 'ml-invasive').length,
+      'ml-ftir': entries.filter((entry) => entry.source === 'ml-ftir').length,
+    }),
+    [entries],
+  );
+  const filteredEntries = useMemo(
+    () =>
+      entries.filter((entry) => {
+        const matchesSource = sourceFilter === 'all' || entry.source === sourceFilter;
+        return matchesSource && reportMatchesQuery(entry, reportQuery);
+      }),
+    [entries, reportQuery, sourceFilter],
+  );
+  const groupedEntries = useMemo(
+    () =>
+      filteredEntries.reduce<Array<{ day: string; reports: PredictionHistoryEntry[] }>>((groups, entry) => {
+        const day = formatReportDay(entry.createdAt);
+        const existingGroup = groups.find((group) => group.day === day);
+        if (existingGroup) {
+          existingGroup.reports.push(entry);
+        } else {
+          groups.push({ day, reports: [entry] });
+        }
+        return groups;
+      }, []),
+    [filteredEntries],
+  );
 
   const handleSelectEntry = (entryId: string) => {
     setSelectedId(entryId);
@@ -399,11 +605,16 @@ export function HistoryReport() {
       </div>
 
       <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white/90 px-4 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/85 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Report navigation</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {isRailOpen ? 'The saved report panel is visible.' : 'The saved report panel is hidden so the report can use the full width.'}
-          </p>
+        <div className="flex items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
+            <FileText className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Report index</p>
+            <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+              {filteredEntries.length} of {entries.length} saved reports shown
+            </p>
+          </div>
         </div>
         <Button
           variant="outline"
@@ -415,71 +626,133 @@ export function HistoryReport() {
         </Button>
       </div>
 
-      <div className={`grid gap-6 ${isRailOpen ? 'xl:grid-cols-[280px_minmax(0,1fr)]' : 'xl:grid-cols-1'}`}>
+      <div className={`grid gap-6 ${isRailOpen ? 'xl:grid-cols-[380px_minmax(0,1fr)]' : 'xl:grid-cols-1'}`}>
         {isRailOpen && (
-        <Card className={`${cardClass} xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]`}>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-slate-950 dark:text-white">Saved reports</CardTitle>
-            <CardDescription className="text-slate-600 dark:text-slate-400">
-              Select a report to open its full explanation.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 overflow-y-auto pb-6">
-            {entries.map((entry) => {
-              const isActive = selectedEntry?.id === entry.id;
-              const tone = getRiskTone(entry.riskLevel);
-              const hasExplainability = Boolean(entry.limeSummary || entry.shapSummary || entry.topLimeFeatures?.length || entry.topShapFeatures?.length);
+          <Card className={`${cardClass} overflow-hidden xl:sticky xl:top-24 xl:h-[calc(100vh-8rem)]`}>
+            <CardHeader className="border-b border-slate-100 bg-slate-50/70 pb-4 dark:border-slate-800 dark:bg-slate-950/45">
+              <CardTitle className="text-slate-950 dark:text-white">Saved reports</CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
+                Find the exact assessment before opening the full clinical explanation.
+              </CardDescription>
+              <div className="relative mt-4">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={reportQuery}
+                  onChange={(event) => setReportQuery(event.target.value)}
+                  placeholder="Search source, file, risk..."
+                  className="h-11 rounded-2xl border-slate-200 bg-white pl-9 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                />
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {([
+                  ['all', 'All'],
+                  ['ml-invasive', 'PSA'],
+                  ['ml-ftir', 'FTIR'],
+                  ['form', 'Manual'],
+                ] as Array<[ReportSourceFilter, string]>).map(([value, label]) => {
+                  const isActive = sourceFilter === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSourceFilter(value)}
+                      className={`rounded-2xl border px-3 py-2 text-left text-xs transition ${
+                        isActive
+                          ? 'border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-950 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-slate-700 dark:hover:text-white'
+                      }`}
+                    >
+                      <span className="block font-semibold">{label}</span>
+                      <span className={`mt-0.5 block ${isActive ? 'text-white/70 dark:text-slate-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {sourceCounts[value]} report{sourceCounts[value] === 1 ? '' : 's'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </CardHeader>
+            <CardContent className="h-full overflow-y-auto p-0 pb-6">
+              {groupedEntries.length ? (
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {groupedEntries.map((group) => (
+                    <div key={group.day} className="py-4">
+                      <div className="sticky top-0 z-10 flex items-center gap-2 bg-white/95 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 backdrop-blur dark:bg-slate-900/95 dark:text-slate-400">
+                        <CalendarDays className="h-3.5 w-3.5" />
+                        {group.day}
+                      </div>
+                      <div className="space-y-2 px-3">
+                        {group.reports.map((entry) => {
+                          const isActive = selectedEntry?.id === entry.id;
+                          const tone = getRiskTone(entry.riskLevel);
+                          const meta = sourceMeta(entry.source);
+                          const SourceIcon = meta.icon;
+                          const hasExplainability = Boolean(entry.limeSummary || entry.shapSummary || entry.topLimeFeatures?.length || entry.topShapFeatures?.length);
 
-              return (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => handleSelectEntry(entry.id)}
-                  className={`w-full rounded-[1.35rem] border p-3 text-left transition-all ${
-                    isActive
-                      ? 'border-sky-300 bg-sky-50 shadow-sm dark:border-sky-700 dark:bg-sky-950/25'
-                      : 'border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:hover:bg-slate-900'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-semibold leading-5 text-slate-950 dark:text-slate-100">{sourceLabel(entry.source)}</p>
-                      <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        {new Date(entry.createdAt).toLocaleString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
+                          return (
+                            <button
+                              key={entry.id}
+                              type="button"
+                              onClick={() => handleSelectEntry(entry.id)}
+                              className={`group w-full rounded-2xl border p-3 text-left transition-all ${
+                                isActive
+                                  ? 'border-sky-300 bg-sky-50 shadow-sm dark:border-sky-700 dark:bg-sky-950/25'
+                                  : 'border-transparent bg-transparent hover:border-slate-200 hover:bg-slate-50 dark:hover:border-slate-800 dark:hover:bg-slate-950/70'
+                              }`}
+                            >
+                              <div className="flex items-start gap-3">
+                                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${meta.className}`}>
+                                  <SourceIcon className="h-5 w-5" />
+                                </span>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-semibold text-slate-950 dark:text-slate-100">{sourceLabel(entry.source)}</p>
+                                      <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+                                        {entry.csvFileName || meta.description}
+                                      </p>
+                                    </div>
+                                    <ChevronRight className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition ${isActive ? 'text-sky-600' : 'group-hover:translate-x-0.5 group-hover:text-slate-600 dark:group-hover:text-slate-300'}`} />
+                                  </div>
+
+                                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{formatReportTime(entry.createdAt)}</span>
+                                    <Badge className={`rounded-full border px-2.5 py-0.5 text-[11px] ${tone.badge}`}>
+                                      {entry.riskLevel} {entry.riskScore}/100
+                                    </Badge>
+                                    {typeof entry.predictionValue === 'number' && (
+                                      <Badge variant="outline" className="rounded-full border-slate-200 px-2.5 py-0.5 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                                        {toPercent(entry.predictionValue)}
+                                      </Badge>
+                                    )}
+                                    {hasExplainability && (
+                                      <Badge variant="outline" className="rounded-full border-sky-200 px-2.5 py-0.5 text-[11px] text-sky-700 dark:border-sky-800 dark:text-sky-300">
+                                        Explained
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
                         })}
-                      </p>
+                      </div>
                     </div>
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ring-4 ${tone.ring}`}>
-                      <span className="text-xs font-semibold">{entry.riskScore}</span>
-                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-5">
+                  <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/70 p-5 text-sm leading-6 text-slate-600 dark:border-slate-800 dark:bg-slate-950/50 dark:text-slate-300">
+                    No reports match the current search and source filter.
                   </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Badge className={`rounded-full border px-2.5 py-0.5 text-[11px] ${tone.badge}`}>{entry.riskLevel}</Badge>
-                    {typeof entry.predictionValue === 'number' && (
-                      <Badge variant="outline" className="rounded-full border-slate-200 px-2.5 py-0.5 text-[11px] text-slate-600 dark:border-slate-700 dark:text-slate-300">
-                        {toPercent(entry.predictionValue)}
-                      </Badge>
-                    )}
-                    {hasExplainability && (
-                      <Badge variant="outline" className="rounded-full border-sky-200 px-2.5 py-0.5 text-[11px] text-sky-700 dark:border-sky-800 dark:text-sky-300">
-                        Explained
-                      </Badge>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {selectedEntry ? (
           <div className="space-y-6">
-            <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+            <div className="grid gap-4 2xl:grid-cols-[1fr_0.9fr]">
               <Card className={`${cardClass} border-l-4 ${riskTone.accent}`}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-3 text-slate-950 dark:text-white">
@@ -556,51 +829,139 @@ export function HistoryReport() {
               </Card>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <Card className={cardClass}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-white">
+                  <Stethoscope className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                  Doctor-readable explanation
+                </CardTitle>
+                <CardDescription className="text-slate-600 dark:text-slate-400">
+                  Plain-language interpretation first, model mechanics second
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="rounded-3xl border border-slate-100 bg-slate-50/80 p-5 dark:border-slate-800 dark:bg-slate-950/60">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Plain English result</p>
+                  <p className="mt-3 text-base leading-7 text-slate-900 dark:text-slate-100">{riskPlainLanguage(selectedEntry)}</p>
+                  <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{modalityPlainLanguage(selectedEntry)}</p>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-[1fr_0.9fr]">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
+                      <h3 className="font-semibold text-slate-950 dark:text-white">What influenced this report</h3>
+                    </div>
+                    {selectedFeatureCards.length ? (
+                      <div className="grid gap-3">
+                        {selectedFeatureCards.map((feature) => (
+                          <div key={`${feature.label}-${feature.score}`} className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <p className="font-medium text-slate-950 dark:text-slate-100">{feature.label}</p>
+                              <Badge variant="outline" className="w-fit rounded-full border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                                {formatListValue(feature.score)}
+                              </Badge>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                              This factor {feature.direction}. Magnitude means model influence, not clinical severity.
+                            </p>
+                            {feature.ftirRegion && (
+                              <p className="mt-2 text-xs leading-5 text-emerald-700 dark:text-emerald-300">
+                                Approximate spectral context: {feature.ftirRegion}. PCA components are compressed patterns, so this is a broad biochemical clue, not a named diagnostic marker.
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                        No feature-level driver list was returned for this report.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+                      <h3 className="font-semibold text-slate-950 dark:text-white">Clinical context to check</h3>
+                    </div>
+                    <div className="rounded-2xl border border-sky-100 bg-sky-50/80 p-4 text-sm leading-6 text-sky-900 dark:border-sky-900/60 dark:bg-sky-950/35 dark:text-sky-100">
+                      <ul className="space-y-2">
+                        <li>Review PSA trend, prostate volume, urinary infection/prostatitis possibility, DRE findings, MRI, and biopsy history.</li>
+                        <li>For FTIR, treat the result as a non-invasive urinary EV spectral signal that may support triage, not as a replacement for standard clinical assessment.</li>
+                      </ul>
+                    </div>
+                    {(getSectionText(limeSections, ['Patient takeaway', 'Summary']).length > 0 || getSectionText(limeSections, ['Suggested next context']).length > 0) && (
+                      <div className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">LLM clinical summary</p>
+                        <div className="mt-3 space-y-2 text-sm leading-6 text-slate-700 dark:text-slate-300">
+                          {[...getSectionText(limeSections, ['Patient takeaway', 'Summary']), ...getSectionText(limeSections, ['Suggested next context']).slice(0, 2)].slice(0, 4).map((line, index) => (
+                            <p key={`${line}-${index}`}>{renderFormattedSummary(line)}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {isFtirReport && (
               <Card className={cardClass}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-white">
-                    <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
-                    Patient-specific explanation
+                    <Waves className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+                    FTIR spectrum and biochemical regions
                   </CardTitle>
                   <CardDescription className="text-slate-600 dark:text-slate-400">
-                    LIME summary for this individual report
+                    Raw urinary EV absorbance pattern before PCA compression
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
-                  {selectedEntry.limeSummary ? (
-                    <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-300">
-                      {renderFormattedSummary(selectedEntry.limeSummary)}
+                <CardContent className="space-y-5">
+                  {ftirSpectrumData.length ? (
+                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={ftirSpectrumData} margin={{ top: 8, right: 18, bottom: 12, left: 0 }}>
+                            <defs>
+                              <linearGradient id="historySpectrumGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
+                                <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#dbeafe" />
+                            <XAxis dataKey="wavenumber" tick={{ fontSize: 11 }} label={{ value: 'Wavenumber (cm-1)', position: 'insideBottom', offset: -5, fontSize: 12 }} />
+                            <YAxis tick={{ fontSize: 11 }} label={{ value: 'Absorbance', angle: -90, position: 'insideLeft', fontSize: 12 }} />
+                            <Tooltip
+                              contentStyle={{ borderRadius: '1rem', border: '1px solid #d1d5db', fontSize: 12 }}
+                              formatter={(value: number) => [value.toFixed(4), 'Absorbance']}
+                              labelFormatter={(label: number) => `${label} cm-1`}
+                            />
+                            <Area type="monotone" dataKey="absorbance" stroke="#059669" strokeWidth={1.5} fill="url(#historySpectrumGrad)" dot={false} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No patient-specific explanation was returned for this report.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className={cardClass}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-slate-950 dark:text-white">
-                    <BarChart3 className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
-                    Model-wide explanation
-                  </CardTitle>
-                  <CardDescription className="text-slate-600 dark:text-slate-400">
-                    SHAP summary and broader model context when available
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {selectedEntry.shapSummary ? (
-                    <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700 dark:text-slate-300">
-                      {renderFormattedSummary(selectedEntry.shapSummary)}
+                    <div className="rounded-3xl border border-dashed border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/35 dark:text-amber-100">
+                      This saved report does not include raw FTIR spectrum points. New FTIR reports will store a downsampled spectrum so this graph can be shown here.
                     </div>
-                  ) : (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">No model-wide explanation was returned for this report.</p>
                   )}
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {ftirRegions.map((region) => (
+                      <div key={region.range} className="rounded-2xl border border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/70">
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">{region.range} cm-1</p>
+                        <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-300">{region.label}</p>
+                        <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">{region.meaning}</p>
+                      </div>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
-            </div>
+            )}
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 2xl:grid-cols-2">
               <Card className={cardClass}>
                 <CardHeader>
                   <CardTitle className="text-slate-950 dark:text-white">
@@ -634,7 +995,16 @@ export function HistoryReport() {
                     SHAP importance by absolute impact. Use this as model context, not patient-specific proof.
                   </CardDescription>
                 </CardHeader>
-                <CardContent>{renderChart(shapChartData, 'No SHAP features found for this report.')}</CardContent>
+                <CardContent className="space-y-4">
+                  {renderChart(shapChartData, 'No SHAP features found for this report.')}
+                  {getSectionText(shapSections, ['Patient takeaway', 'Summary', 'Clinical caution']).length > 0 && (
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-sm leading-6 text-slate-700 dark:border-slate-800 dark:bg-slate-950/60 dark:text-slate-300">
+                      {getSectionText(shapSections, ['Patient takeaway', 'Summary', 'Clinical caution']).slice(0, 3).map((line, index) => (
+                        <p key={`${line}-${index}`}>{renderFormattedSummary(line)}</p>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
               </Card>
             </div>
 
