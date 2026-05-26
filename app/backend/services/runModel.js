@@ -103,27 +103,27 @@ const CLINICAL_FEATURES = {
             2: 'Tertiary',
             3: 'Postgraduate',
         }[Math.round(Number(value))] || `Code ${formatNumber(value, 0)}`),
-        meaning: 'Education is a contextual dataset variable and should not be treated as a direct biological risk factor.',
+        meaning: 'Education is a contextual dataset variable and should not be treated as a direct biological risk factor. It can also behave as a social-context proxy, so interpret any influence as a dataset-pattern signal rather than a clinical reason.',
     },
     region_Rural: {
         label: 'Region',
         value: (value) => Number(value) >= 0.5 ? 'Rural' : 'Urban / not rural',
-        meaning: 'Region is a care-context and access variable in the dataset; it is not a biological explanation.',
+        meaning: 'Region is a care-context and access variable in the dataset; it is not a biological explanation and may capture access-to-care or sampling patterns.',
     },
     race_C: {
         label: 'Race indicator: Chinese',
         value: (value) => Number(value) >= 0.5 ? 'Chinese: yes' : 'Chinese: no',
-        meaning: 'Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.',
+        meaning: 'Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.',
     },
     race_I: {
         label: 'Race indicator: Indian',
         value: (value) => Number(value) >= 0.5 ? 'Indian: yes' : 'Indian: no',
-        meaning: 'Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.',
+        meaning: 'Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.',
     },
     race_M: {
         label: 'Race indicator: Malay',
         value: (value) => Number(value) >= 0.5 ? 'Malay: yes' : 'Malay: no',
-        meaning: 'Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.',
+        meaning: 'Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.',
     },
 };
 
@@ -140,7 +140,9 @@ const CLINICAL_FEATURES = {
     CLINICAL_FEATURES[feature] = {
         label: feature.replaceAll('_', ' ').replace(/\b\w/g, (char) => char.toUpperCase()),
         value: formatYesNo,
-        meaning: 'This is a background health-status field. Interpret it as care pathway context, not a direct causal finding.',
+        meaning: feature === 'diabetes_melitus'
+            ? 'This is comorbidity context, not a direct prostate cancer finding. The project notebook noted diabetes may act as a weak proxy for race in this dataset, so interpret model influence cautiously.'
+            : 'This is a background health-status field. Interpret it as care pathway context, not a direct causal finding.',
     };
 });
 

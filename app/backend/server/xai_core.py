@@ -116,17 +116,17 @@ def _clinical_feature_note(feature: str, value, weight: Optional[float] = None) 
         "race_C": (
             "Race indicator: Chinese",
             "Chinese",
-            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+            "Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.",
         ),
         "race_I": (
             "Race indicator: Indian",
             "Indian",
-            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+            "Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.",
         ),
         "race_M": (
             "Race indicator: Malay",
             "Malay",
-            "Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.",
+            "Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and subgroup fairness disparities, so treat this as a potential bias signal rather than a clinical reason.",
         ),
     }
 
@@ -168,13 +168,13 @@ def _clinical_feature_note(feature: str, value, weight: Optional[float] = None) 
         return {
             "display_feature": "Education background",
             "display_value": display_value,
-            "meaning": f"Education is a contextual dataset variable and should not be treated as a direct biological risk factor.{direction}",
+            "meaning": f"Education is a contextual dataset variable and should not be treated as a direct biological risk factor. It can also behave as a social-context proxy, so interpret any influence as a dataset-pattern signal rather than a clinical reason.{direction}",
         }
     if feature == "region_Rural":
         return {
             "display_feature": "Region",
             "display_value": "Rural" if float(value) >= 0.5 else "Urban / not rural",
-            "meaning": f"Region is a care-context and access variable in the dataset; it is not a biological explanation.{direction}",
+            "meaning": f"Region is a care-context and access variable in the dataset; it is not a biological explanation and may capture access-to-care or sampling patterns.{direction}",
         }
     if feature in binary_features:
         display_feature, race_label, meaning = binary_features[feature]
@@ -186,10 +186,14 @@ def _clinical_feature_note(feature: str, value, weight: Optional[float] = None) 
         }
     if feature in COMORBIDITY_FEATURES:
         label = COMORBIDITY_FEATURES[feature].replace("_", " ").title()
+        if feature == "diabetes_melitus":
+            meaning = "This records diabetes mellitus history. Clinically it is comorbidity context, not a direct prostate cancer finding. The project notebook also noted diabetes may act as a weak race proxy in this dataset."
+        else:
+            meaning = f"This records {COMORBIDITY_FEATURES[feature]}. It may reflect background health status or care pathway context, not a direct causal finding."
         return {
             "display_feature": label,
             "display_value": _format_yes_no(value),
-            "meaning": f"This records {COMORBIDITY_FEATURES[feature]}. It may reflect background health status or care pathway context, not a direct causal finding.{direction}",
+            "meaning": f"{meaning}{direction}",
         }
     if feature.startswith("Column_"):
         return {
@@ -224,7 +228,7 @@ SYSTEM_PROMPT = (
     "You are a senior urologist and prostate-cancer clinical decision-support expert working "
     "with a clinical data scientist. Explain SHAP/LIME outputs in careful plain language for "
     "a clinician-facing research dashboard. Do not diagnose, prescribe, imply the model output "
-    "is definitive, invent unsupported protected-attribute bias claims, or turn model "
+    "is definitive, invent unsupported treatment reasons, or turn model "
     "associations into causal medical explanations. Keep uncertainty explicit and tie every "
     "statement to the supplied feature values and model direction."
 )
@@ -234,7 +238,8 @@ PROSTATE_DOMAIN_GUIDANCE = "\n".join([
     "- PSA is prostate-specific antigen. Higher PSA can be associated with prostate cancer, benign prostatic enlargement, prostatitis, urinary infection, recent instrumentation, or ejaculation; interpret with age, prostate volume, exam findings, repeat testing, and clinical context.",
     "- Age is a major prostate-cancer risk factor, but age alone does not determine whether invasive assessment is appropriate; fitness, life expectancy, symptoms, PSA kinetics, MRI findings, and patient preference matter.",
     "- Family history increases baseline risk, especially in first-degree relatives or early-onset disease.",
-    "- Race/ethnicity variables are demographic model inputs, not biological explanations. Describe them as learned associations in the training data and avoid bias claims unless bias evaluation data is provided.",
+    "- Race/ethnicity variables are protected demographic model inputs, not biological explanations. This project notebook includes bias evaluation data: race distribution imbalance, subgroup performance disparities, and possible proxy variables were flagged. When race or proxy variables appear, describe them as fairness-risk signals requiring audit, not clinical reasons.",
+    "- Diabetes, education, and region may behave as weak race or access-to-care proxies in this dataset. Explain that possibility when those variables influence a result.",
     "- Diabetes, hyperlipidemia, hypertension, renal disease, cardiovascular disease, and body size are comorbidity/context variables. Discuss them as possible correlates of pathway selection or background health status, not direct causes.",
     "- Height and weight rarely have direct clinical meaning for prostate biopsy decisions; if they appear important, frame them as model-learned associations needing clinical review.",
     "- For invasive-modality predictions, class 1 means the model leans toward invasive modality being necessary or higher modeled need; class 0 means lower modeled need.",
@@ -522,7 +527,7 @@ def summarize_lime(modality: str, prediction: Dict, language: str = "en") -> Opt
         "- Focus on this individual report; do not overgeneralize from global SHAP.",
         "- If probability is near the decision boundary, explicitly say the model confidence is limited.",
         "- Avoid vague phrases unless you explain what each supplied value means clinically and what it does not prove.",
-        "- Never say a race variable means the model is biased unless a fairness/bias audit is provided.",
+        "- A fairness/bias audit is available in the project notebook. If race, diabetes, education, or region appears, explicitly say the driver may reflect dataset bias/proxy structure and must not guide care by itself.",
         "- For FTIR, do not call PCA components biomarkers. Explain them as compressed spectrum patterns and connect only at broad region/biomolecule level when supported.",
         "",
         f"Modality: {modality}",

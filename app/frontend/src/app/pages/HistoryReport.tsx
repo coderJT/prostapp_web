@@ -57,6 +57,18 @@ type FeatureChartRow = {
   direction: 'raises' | 'lowers';
 };
 
+type FeatureCard = {
+  featureKey: string;
+  label: string;
+  value: string | null;
+  direction: string;
+  score: number;
+  plainMeaning: string;
+  clinicalMeaning: string;
+  caution?: string;
+  ftirRegion: string | null;
+};
+
 type ReportSourceFilter = 'all' | PredictionHistoryEntry['source'];
 
 const shellClass =
@@ -178,6 +190,32 @@ function normalizeFeature(item: unknown) {
   }
 
   return null;
+}
+
+function normalizeFeatureDetail(item: unknown) {
+  const normalized = normalizeFeature(item);
+  if (!normalized) return null;
+
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    const raw = item as Record<string, unknown>;
+    return {
+      ...normalized,
+      featureKey: String(raw.feature ?? raw.name ?? raw.label ?? normalized.feature ?? 'Unknown feature'),
+      patientValue: raw.feature_value ?? raw.value ?? raw.displayValue ?? raw.display_value ?? null,
+      displayFeature: raw.displayFeature ?? raw.display_feature ?? null,
+      displayValue: raw.displayValue ?? raw.display_value ?? null,
+      meaning: typeof raw.meaning === 'string' ? raw.meaning : null,
+    };
+  }
+
+  return {
+    ...normalized,
+    featureKey: String(normalized.feature ?? 'Unknown feature'),
+    patientValue: null,
+    displayFeature: null,
+    displayValue: null,
+    meaning: null,
+  };
 }
 
 function buildChartData(features: unknown[] = []) {
@@ -323,6 +361,113 @@ function featureDirectionLabel(value: unknown) {
   return numeric >= 0 ? 'raised the modeled estimate' : 'lowered the modeled estimate';
 }
 
+function featureDirectionSentence(score: number) {
+  const direction = score >= 0 ? 'toward the modeled positive class' : 'away from the modeled positive class';
+  return `This contribution moved the estimate ${direction}. The number is a local model contribution, not a measure of disease severity.`;
+}
+
+function isRaceFeature(feature: string) {
+  return feature === 'race_C' || feature === 'race_I' || feature === 'race_M';
+}
+
+function isFairnessSensitiveFeature(feature: string) {
+  return isRaceFeature(feature) || feature === 'diabetes_melitus' || feature === 'educational_background' || feature === 'region_Rural';
+}
+
+function featureClinicalDepth(feature: string, value: unknown, score: number, entry: PredictionHistoryEntry | null) {
+  const directionWord = score >= 0 ? 'increased' : 'decreased';
+
+  if (isRaceFeature(feature)) {
+    return {
+      clinicalMeaning:
+        `This is a one-hot race indicator from the dataset. It ${directionWord} this local model estimate because the model learned a statistical association in the training data, not because race is a prostate-cancer mechanism.`,
+      caution:
+        'The notebook flagged race imbalance and group-fairness disparities, including different performance across Chinese, Malay, and Indian subgroups. Treat this as a fairness-risk signal requiring audit, not as justification for clinical action.',
+    };
+  }
+
+  if (feature === 'age') {
+    return {
+      clinicalMeaning:
+        `Age is clinically relevant because prostate cancer incidence generally rises with age. Here, however, the local model says this particular age value ${directionWord} the estimate relative to the model's comparison pattern, so it should not be read as a universal protective or harmful rule.`,
+      caution: 'Interpret age with PSA trend, DRE, MRI findings, comorbidity, life expectancy, and patient preferences.',
+    };
+  }
+
+  if (feature === 'psa_(ng/ml)') {
+    return {
+      clinicalMeaning:
+        'PSA is a prostate-derived blood marker and is one of the more clinically meaningful drivers when present. A positive contribution is consistent with higher modeled concern, but PSA is sensitive rather than specific.',
+      caution:
+        'Benign enlargement, prostatitis, urinary infection, recent ejaculation, catheterization, cystoscopy, or biopsy can raise PSA. Values around 4-10 ng/mL are especially a clinical gray zone and need trend, density, exam, and MRI context.',
+    };
+  }
+
+  if (feature === 'diabetes_melitus') {
+    return {
+      clinicalMeaning:
+        `Diabetes is mainly comorbidity and care-pathway context. Its contribution ${directionWord} the estimate in this model run, but diabetes should not be interpreted as a direct prostate-cancer explanation.`,
+      caution:
+        'The notebook noted diabetes was correlated with Malay race in this dataset and may weakly reintroduce race information as a proxy. Review this driver with fairness caution.',
+    };
+  }
+
+  if (feature === 'family_history_prostate_cancer') {
+    return {
+      clinicalMeaning:
+        'Family history can increase baseline prostate-cancer risk, especially in first-degree relatives or early-onset disease. It is clinically meaningful but still does not diagnose cancer by itself.',
+      caution: 'Clarify which relative was affected, age at diagnosis, known hereditary cancer syndromes, and whether PSA/MRI findings support further workup.',
+    };
+  }
+
+  if (feature === 'educational_background') {
+    return {
+      clinicalMeaning:
+        'Education is social-context information, not tumour biology. A model contribution here may reflect sampling, health-literacy, access-to-care, or referral-pathway patterns in the dataset.',
+      caution: 'The notebook warned that education can reintroduce race-related information, so it should be treated as a possible proxy-bias variable.',
+    };
+  }
+
+  if (feature === 'region_Rural') {
+    return {
+      clinicalMeaning:
+        'Region can capture access-to-care, referral, and screening pathway differences. It is not a biological prostate-cancer mechanism.',
+      caution: 'Do not use rural/urban status alone to escalate or de-escalate care; use clinical findings and patient context.',
+    };
+  }
+
+  if (feature === 'body_weight_(kg)' || feature === 'height_(cm)') {
+    return {
+      clinicalMeaning:
+        'Body size is model context here. It rarely explains prostate biopsy need on its own and may reflect correlations in the training cohort.',
+      caution: 'Treat this as a weak modelling association unless supported by stronger clinical variables.',
+    };
+  }
+
+  if (/^Column_\d+$/.test(feature)) {
+    return {
+      clinicalMeaning:
+        'This is a PCA-compressed FTIR spectral component. It reflects a blended biochemical pattern across many wavenumbers rather than a single lab value or named biomarker.',
+      caution:
+        entry?.source === 'ml-ftir'
+          ? 'Use the broad FTIR region guide below for context; without a component loading map, the safest interpretation is spectral-pattern evidence only.'
+          : 'PCA components should not be translated into clinical biomarkers without a validated loading map.',
+    };
+  }
+
+  return {
+    clinicalMeaning: getFeatureNoteMeaning({ feature, value, weight: score }),
+    caution: isFairnessSensitiveFeature(feature) ? 'Because this may be a demographic or access-to-care proxy, interpret it cautiously.' : undefined,
+  };
+}
+
+function hasFairnessSensitiveDrivers(entry: PredictionHistoryEntry | null, features: FeatureCard[] = []) {
+  if (!entry) return false;
+  const fromCards = features.some((feature) => isFairnessSensitiveFeature(feature.featureKey));
+  const fromNotes = (entry.featureNotes || []).some((note) => isFairnessSensitiveFeature(String(note.feature || '')));
+  return fromCards || fromNotes;
+}
+
 function pcaComponentNumber(value: unknown) {
   const match = String(value || '').match(/Column_(\d+)/);
   return match ? Number(match[1]) : null;
@@ -336,17 +481,34 @@ function inferFtirRegionFromComponent(feature: unknown) {
 }
 
 function topFeatureCards(entry: PredictionHistoryEntry | null) {
-  if (!entry?.topLimeFeatures?.length) return [];
-  return entry.topLimeFeatures
+  const sourceFeatures = entry?.topLimeFeatures?.length ? entry.topLimeFeatures : entry?.featureNotes || [];
+  if (!entry || !sourceFeatures.length) return [];
+  return sourceFeatures
     .slice(0, 5)
-    .map(normalizeFeature)
-    .filter((feature): feature is { feature: unknown; score: number } => Boolean(feature))
-    .map(({ feature, score }) => ({
-      label: formatFeatureName(feature),
-      direction: featureDirectionLabel(score),
-      score,
-      ftirRegion: entry.source === 'ml-ftir' ? inferFtirRegionFromComponent(feature) : null,
-    }));
+    .map(normalizeFeatureDetail)
+    .filter((feature): feature is NonNullable<ReturnType<typeof normalizeFeatureDetail>> => Boolean(feature))
+    .map((feature) => {
+      const displayNote = {
+        feature: feature.featureKey,
+        value: feature.patientValue,
+        displayValue: typeof feature.displayValue === 'string' ? feature.displayValue : null,
+        displayFeature: typeof feature.displayFeature === 'string' ? feature.displayFeature : null,
+        weight: feature.score,
+        meaning: feature.meaning || undefined,
+      };
+      const depth = featureClinicalDepth(feature.featureKey, feature.patientValue, feature.score, entry);
+      return {
+        featureKey: feature.featureKey,
+        label: formatFeatureName(displayNote),
+        value: feature.patientValue === null && !feature.displayValue ? null : formatFeatureNoteValue(displayNote),
+        direction: featureDirectionLabel(feature.score),
+        score: feature.score,
+        plainMeaning: featureDirectionSentence(feature.score),
+        clinicalMeaning: depth.clinicalMeaning,
+        caution: depth.caution,
+        ftirRegion: entry.source === 'ml-ftir' ? inferFtirRegionFromComponent(feature.featureKey) : null,
+      };
+    });
 }
 
 function formatReportDay(value: string) {
@@ -451,6 +613,10 @@ export function HistoryReport() {
   const limeSections = useMemo(() => explanationSections(selectedEntry?.limeSummary), [selectedEntry?.limeSummary]);
   const shapSections = useMemo(() => explanationSections(selectedEntry?.shapSummary), [selectedEntry?.shapSummary]);
   const selectedFeatureCards = useMemo(() => topFeatureCards(selectedEntry), [selectedEntry]);
+  const hasFairnessWarning = useMemo(
+    () => hasFairnessSensitiveDrivers(selectedEntry, selectedFeatureCards),
+    [selectedEntry, selectedFeatureCards],
+  );
   const selectedClinicalMeaning = useMemo(() => clinicalMeaningPoints(selectedEntry), [selectedEntry]);
   const selectedNextSteps = useMemo(() => nextStepPoints(selectedEntry), [selectedEntry]);
   const ftirSpectrumData = selectedEntry?.ftirSpectrumData || [];
@@ -917,22 +1083,45 @@ export function HistoryReport() {
                       <ClipboardList className="h-5 w-5 text-sky-700 dark:text-sky-300" />
                       <h3 className="font-semibold text-slate-950 dark:text-white">What influenced this report</h3>
                     </div>
+                    {hasFairnessWarning && (
+                      <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950 dark:bg-amber-950/35 dark:text-amber-100">
+                        <p className="font-semibold">Fairness and bias note</p>
+                        <p className="mt-1">
+                          The project notebook flagged race imbalance and subgroup performance disparities, with possible proxy effects from variables such as diabetes, education, or region. Race/proxy drivers below should be read as dataset-behaviour warnings, not biological or clinical reasons.
+                        </p>
+                      </div>
+                    )}
                     {selectedFeatureCards.length ? (
                       <div className="grid gap-3">
                         {selectedFeatureCards.map((feature) => (
                           <div key={`${feature.label}-${feature.score}`} className="border-b border-slate-100 pb-4 last:border-b-0 dark:border-slate-800">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                              <p className="font-medium text-slate-950 dark:text-slate-100">{feature.label}</p>
+                              <div>
+                                <p className="font-medium text-slate-950 dark:text-slate-100">{feature.label}</p>
+                                {feature.value && (
+                                  <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    Patient value: {feature.value}
+                                  </p>
+                                )}
+                              </div>
                               <Badge variant="outline" className="w-fit rounded-full border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
                                 {formatListValue(feature.score)}
                               </Badge>
                             </div>
                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                              This factor {feature.direction}. Magnitude means model influence, not clinical severity.
+                              {feature.plainMeaning}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">
+                              {feature.clinicalMeaning}
                             </p>
                             {feature.ftirRegion && (
                               <p className="mt-2 text-xs leading-5 text-emerald-700 dark:text-emerald-300">
                                 Approximate spectral context: {feature.ftirRegion}. PCA components are compressed patterns, so this is a broad biochemical clue, not a named diagnostic marker.
+                              </p>
+                            )}
+                            {feature.caution && (
+                              <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                {feature.caution}
                               </p>
                             )}
                           </div>
@@ -1094,25 +1283,34 @@ export function HistoryReport() {
               </CardHeader>
               <CardContent>
                 {selectedEntry.featureNotes?.length ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-100 bg-slate-50 dark:border-slate-800 dark:bg-slate-950">
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300">Feature</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300">Value</th>
-                          <th className="px-4 py-3 text-left font-semibold text-slate-700 dark:text-slate-300">Clinical meaning</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedEntry.featureNotes.slice(0, 15).map((note, idx) => (
-                          <tr key={`${note.feature}-${idx}`} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-950/60">
-                            <td className="px-4 py-3 font-medium text-slate-950 dark:text-slate-100">{formatFeatureName(note)}</td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{formatFeatureNoteValue(note)}</td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{getFeatureNoteMeaning(note)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="space-y-4">
+                    {selectedEntry.featureNotes.slice(0, 15).map((note, idx) => {
+                      const featureKey = String(note.feature || '');
+                      const score = getNumericValue(note.weight ?? note.mean_shap ?? note.mean_abs_shap) ?? 0;
+                      const depth = featureClinicalDepth(featureKey, note.value ?? note.feature_value, score, selectedEntry);
+                      return (
+                        <div key={`${note.feature}-${idx}`} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0 dark:border-slate-800">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="font-medium text-slate-950 dark:text-slate-100">{formatFeatureName(note)}</p>
+                              <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                Patient value: {formatFeatureNoteValue(note)}
+                              </p>
+                            </div>
+                            {(note.weight !== undefined || note.mean_abs_shap !== undefined || note.mean_shap !== undefined) && (
+                              <Badge variant="outline" className="w-fit rounded-full border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300">
+                                {formatListValue(note.weight ?? note.mean_abs_shap ?? note.mean_shap)}
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-300">{getFeatureNoteMeaning(note)}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-700 dark:text-slate-200">{depth.clinicalMeaning}</p>
+                          {depth.caution && (
+                            <p className="mt-2 text-xs leading-5 text-amber-800 dark:text-amber-200">{depth.caution}</p>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="text-sm text-slate-500 dark:text-slate-400">No feature interpretation notes were returned for this report.</p>

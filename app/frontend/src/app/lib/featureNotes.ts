@@ -162,16 +162,19 @@ export function getFeatureNoteMeaning(note: FeatureNoteLike) {
     return `Family history can raise baseline prostate cancer risk, especially for first-degree relatives or early-onset disease.${direction}`;
   }
   if (feature === 'educational_background') {
-    return `Education is a contextual dataset variable and should not be treated as a direct biological risk factor.${direction}`;
+    return `Education is a contextual dataset variable and should not be treated as a direct biological risk factor. It can also behave as a social-context proxy, so any influence should be reviewed for dataset bias rather than used as a clinical reason.${direction}`;
   }
   if (feature === 'body_weight_(kg)' || feature === 'height_(cm)') {
     return `Body size is a model context variable here, not a standalone prostate cancer decision factor.${direction}`;
   }
   if (feature === 'region_Rural') {
-    return `Region is a care-context and access variable in the dataset; it is not a biological explanation.${direction}`;
+    return `Region is a care-context and access variable in the dataset; it is not a biological explanation. It may capture access-to-care or sampling patterns rather than disease biology.${direction}`;
   }
   if (feature === 'race_C' || feature === 'race_I' || feature === 'race_M') {
-    return `Race/ethnicity is a demographic model input. Treat it as a learned dataset association, not a biological cause.${direction}`;
+    return `Race/ethnicity is a protected demographic input, not a biological explanation. The project notebook flagged race imbalance and group fairness disparities, so this contribution should be treated as a potential bias signal, not a clinical reason.${direction}`;
+  }
+  if (feature === 'diabetes_melitus') {
+    return `This records diabetes mellitus history. Clinically it is comorbidity context, not a direct prostate cancer finding. The project notebook also noted diabetes may act as a weak proxy for race in this dataset, so interpret its model influence cautiously.${direction}`;
   }
   if (binaryFeatureLabels[feature]) {
     return `This records ${binaryFeatureLabels[feature]}. It may reflect background health status or care pathway context, not a direct causal finding.${direction}`;
